@@ -9,7 +9,7 @@ import { enabledCount, type Display, type SourceSnapshot } from "../shared/types
 import { Button } from "./controls";
 import { AccountRows } from "./account-rows";
 import { Timestamp } from "./timestamp";
-import { antigravitySnapshot } from "./usage";
+import { antigravitySnapshot } from "../shared/native-usage";
 
 export const overviewKey = (host: string) => ["provider-usage", host, "overview"] as const;
 
