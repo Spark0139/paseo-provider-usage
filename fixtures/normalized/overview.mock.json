@@ -108,6 +108,12 @@
               "usedPercent": 61,
               "resetAt": "2026-11-30T15:00:00Z",
               "status": "allowed"
+            },
+            {
+              "id": "seven_day_overage_included",
+              "label": "Fable 周额度",
+              "usedPercent": 37,
+              "resetAt": "2026-12-02T15:00:00Z"
             }
           ],
           "observedAt": "2026-11-26T05:32:00Z"

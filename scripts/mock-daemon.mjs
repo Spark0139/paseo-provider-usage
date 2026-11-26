@@ -52,8 +52,10 @@ async function verify(client, demo, directory) {
   assert.equal(Date.parse(personal.lastSuccessAt), Date.parse("2026-11-26T05:32:00Z"));
   assert.equal(Date.parse(personal.accounts.find(a => a.label === "Demo Pro").observedAt), Date.parse(personal.lastSuccessAt));
   assert.equal(overview.sources.find(s => s.label === "Second Keeper").accounts[0].state, "unavailable");
-  assert.deepEqual(overview.sources.find(s => s.kind === "claude").accounts[0].windows.map(w => 100 - w.usedPercent), [77, 39]);
-  assert.equal(overview.sources.filter(s => s.kind === "native").length, 1);
+  assert.deepEqual(overview.sources.find(s => s.kind === "claude").accounts[0].windows.map(w => 100 - w.usedPercent), [77, 39, 63]);
+  const native = overview.sources.find(s => s.kind === "native").accounts[0];
+  assert.deepEqual(native.windows.map(w => w.usedPercent), [25, 50, 0, 100, 75, null]);
+  assert.equal(new Set(native.windows.map(w => w.id)).size, native.windows.length);
 
   await rpc("usage.overview", { refresh: true });
   const reread = await counts();
@@ -77,7 +79,9 @@ async function verify(client, demo, directory) {
   assert.deepEqual(keeper.map(r => r.report.status).sort(), ["available", "available", "error", "unavailable"]);
   const claude = reports.filter(r => r.sourceId === "claude-passive-quota");
   assert.equal(claude.length, 1);
-  assert.deepEqual(claude[0].report.windows.map(w => w.usedPct), [23, 61]);
+  assert.deepEqual(claude[0].report.windows.map(w => [w.id, w.usedPct]), [
+    ["five_hour", 23], ["seven_day", 61], ["seven_day_overage_included", 37],
+  ]);
   assert.equal((await counts()).refresh, 0);
   assert.deepEqual(await rpc("keeper.refresh", { id: personal.sourceId }), { queued: 1, pending: 1, failed: 0 });
   assert.equal((await counts()).refresh, 1);
