@@ -1,0 +1,21 @@
+{
+  "providers": [
+    {
+      "providerId": "antigravity",
+      "displayName": "Antigravity",
+      "planLabel": null,
+      "status": "available",
+      "windows": [
+        { "id": "mock-model-weekly", "label": "Model group · Weekly", "remainingPct": 67, "resetsAt": "2026-11-30T01:00:00Z" },
+        { "id": "mock-model-other", "label": "Model group · Disabled", "usedPct": null, "resetsAt": null }
+      ]
+    },
+    {
+      "providerId": "provider-usage-cpa",
+      "displayName": "Personal CPA",
+      "planLabel": null,
+      "status": "available",
+      "windows": []
+    }
+  ]
+}
