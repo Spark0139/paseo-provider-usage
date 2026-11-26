@@ -1,11 +1,11 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import {
-  clearSecretRpc, deleteInstanceRpc, overviewRpc, preferencesRpc, saveInstanceRpc, settingsRpc, testInstanceRpc,
+  clearSecretRpc, deleteInstanceRpc, overviewRpc, preferencesRpc, refreshKeeperRpc, saveInstanceRpc, settingsRpc, testInstanceRpc,
 } from "../../shared/contracts";
 import type { SourceSnapshot } from "../../shared/types";
 import { SettingsStore } from "../storage/store";
 import { UsageService } from "../usage/service";
-import { pullCpa, testCpa } from "../sources/cpa";
+import { createKeeperClient } from "../sources/keeper";
 import { registerClaude } from "../sources/claude";
 import { registerUsage } from "./usage";
 
@@ -14,7 +14,16 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
   now?: () => Date;
   mockNative?: SourceSnapshot;
 } = {}) {
-  const usage = new UsageService(store, (instance, key) => pullCpa(instance, key, options), options.now);
+  const send = options.fetch ?? fetch;
+  // The shared React Native typings omit this Node 22 server API.
+  const signals = AbortSignal as typeof AbortSignal & { any(values: AbortSignal[]): AbortSignal };
+  const usage = new UsageService(store, (instance, password, lifetime) =>
+    createKeeperClient(instance, password, {
+      fetch: (input, init) => send(input, {
+        ...init,
+        signal: init?.signal ? signals.any([init.signal, lifetime]) : lifetime,
+      }),
+    }), options.now);
   const collector = registerClaude(server, {
     directory: store.directory, settings: () => store.claude,
     ingest: (windows, observedAt) => usage.ingest(windows, observedAt),
@@ -27,20 +36,18 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
     usage.prune();
     return settings();
   });
-  server.handle(testInstanceRpc, async draft => {
-    const { instance, key } = store.resolve(draft);
-    return { count: await testCpa(instance, key, options) };
-  });
+  server.handle(testInstanceRpc, async draft => ({ count: await usage.testInstance(draft) }));
   server.handle(deleteInstanceRpc, ({ id }) => {
     store.remove(id);
     usage.prune();
     return settings();
   });
   server.handle(clearSecretRpc, ({ id }) => {
-    store.remove(id, true);
+    store.clearPassword(id);
     usage.prune();
     return settings();
   });
+  server.handle(refreshKeeperRpc, ({ id }) => usage.requestRefresh(id));
   server.handle(preferencesRpc, input => {
     const previous = store.claude;
     store.preferences(input);
@@ -55,5 +62,8 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
     if (options.mockNative && store.display.showNativeProviders) sources.push(options.mockNative);
     return { sources, display: store.display, mock: Boolean(options.mockNative) };
   });
-  return () => collector.dispose();
+  return () => {
+    collector.dispose();
+    usage.dispose();
+  };
 }

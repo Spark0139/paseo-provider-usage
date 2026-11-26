@@ -4,7 +4,7 @@ import { claudeSchema, displaySchema, instanceSchema, snapshotSchema } from "./t
 
 const empty = z.object({});
 export const settingsSchema = z.object({
-  instances: z.array(instanceSchema.extend({ hasSecret: z.boolean() })),
+  instances: z.array(instanceSchema.extend({ hasPassword: z.boolean() })),
   claude: claudeSchema, display: displaySchema, claudeObservedAt: z.string().nullable(),
 });
 export type SettingsView = z.infer<typeof settingsSchema>;
@@ -13,13 +13,20 @@ export const overviewRpc = defineRpc({
   output: z.object({ sources: z.array(snapshotSchema), display: displaySchema, mock: z.boolean() }),
 });
 export const settingsRpc = defineRpc({ name: "config.read", input: empty, output: settingsSchema });
-const instanceDraft = instanceSchema.partial({ id: true }).extend({ key: z.string().optional() });
-export const saveInstanceRpc = defineRpc({ name: "instance.save", input: instanceDraft, output: settingsSchema });
+const instanceDraft = instanceSchema.partial({ id: true }).extend({ password: z.string().optional() }).strict();
+export const saveInstanceRpc = defineRpc({ name: "keeper.save", input: instanceDraft, output: settingsSchema });
 export const testInstanceRpc = defineRpc({
-  name: "instance.test", input: instanceDraft, output: z.object({ count: z.number().int().nonnegative() }),
+  name: "keeper.test", input: instanceDraft, output: z.object({ count: z.number().int().nonnegative() }),
 });
-export const deleteInstanceRpc = defineRpc({ name: "instance.delete", input: z.object({ id: z.string() }), output: settingsSchema });
-export const clearSecretRpc = defineRpc({ name: "instance.clear-key", input: z.object({ id: z.string() }), output: settingsSchema });
+export const deleteInstanceRpc = defineRpc({ name: "keeper.delete", input: z.object({ id: z.string() }), output: settingsSchema });
+export const clearSecretRpc = defineRpc({ name: "keeper.clear-password", input: z.object({ id: z.string() }), output: settingsSchema });
+const count = z.number().int().nonnegative();
+const refreshResult = z.object({ queued: count, pending: count, failed: count });
+export type KeeperRefreshResult = z.infer<typeof refreshResult>;
+export const refreshKeeperRpc = defineRpc({
+  name: "keeper.refresh", input: z.object({ id: z.string() }),
+  output: refreshResult,
+});
 export const preferencesRpc = defineRpc({
   name: "config.preferences", input: z.object({ claude: claudeSchema.optional(), display: displaySchema.partial().optional() }),
   output: settingsSchema,
