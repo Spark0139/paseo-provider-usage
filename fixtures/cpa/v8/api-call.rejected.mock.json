@@ -1,0 +1,9 @@
+{
+  "status_code": 401,
+  "header": {
+    "Content-Type": [
+      "application/json"
+    ]
+  },
+  "body": "{\"error\": {\"message\": \"Synthetic upstream rejection\"}}"
+}

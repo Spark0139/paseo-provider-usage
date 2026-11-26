@@ -1,0 +1,132 @@
+{
+  "clock": "2026-11-26T05:32:00Z",
+  "snapshots": [
+    {
+      "sourceId": "cpa-personal",
+      "kind": "cpa",
+      "label": "Personal CPA",
+      "accounts": [
+        {
+          "id": "mock-codex-01",
+          "label": "Pro account",
+          "enabled": true,
+          "state": "available",
+          "windows": [
+            {
+              "id": "five_hour",
+              "label": "5-hour",
+              "usedPercent": 18,
+              "resetAt": "2026-11-26T10:30:00Z",
+              "status": "allowed"
+            },
+            {
+              "id": "seven_day",
+              "label": "Weekly",
+              "usedPercent": 44,
+              "resetAt": "2026-11-30T01:00:00Z",
+              "status": "allowed"
+            }
+          ],
+          "observedAt": "2026-11-26T05:32:00Z",
+          "planLabel": "Pro"
+        },
+        {
+          "id": "mock-codex-02",
+          "label": "Plus account",
+          "enabled": true,
+          "state": "exhausted",
+          "windows": [
+            {
+              "id": "five_hour",
+              "label": "5-hour",
+              "usedPercent": 100,
+              "resetAt": "2026-11-26T13:15:00Z",
+              "status": "exhausted"
+            },
+            {
+              "id": "seven_day",
+              "label": "Weekly",
+              "usedPercent": 27,
+              "resetAt": "2026-12-01T04:00:00Z",
+              "status": "allowed"
+            }
+          ],
+          "observedAt": "2026-11-26T05:32:00Z",
+          "planLabel": "Plus"
+        },
+        {
+          "id": "mock-codex-03",
+          "label": "Disabled account",
+          "enabled": false,
+          "state": "disabled",
+          "windows": [],
+          "observedAt": null
+        }
+      ],
+      "lastAttemptAt": "2026-11-26T05:32:00Z",
+      "lastSuccessAt": "2026-11-26T05:32:00Z"
+    },
+    {
+      "sourceId": "cpa-second",
+      "kind": "cpa",
+      "label": "Second CPA",
+      "accounts": [
+        {
+          "id": "mock-codex-04",
+          "label": "Account 04",
+          "enabled": true,
+          "state": "unknown",
+          "windows": [],
+          "observedAt": null,
+          "error": "Synthetic upstream rejection (401)"
+        }
+      ],
+      "lastAttemptAt": "2026-11-26T05:32:00Z",
+      "lastSuccessAt": null,
+      "error": "Synthetic upstream rejection"
+    },
+    {
+      "sourceId": "claude-reclaude",
+      "kind": "claude",
+      "label": "ReClaude",
+      "accounts": [
+        {
+          "id": "claude-reclaude",
+          "label": "ReClaude / Claude Code",
+          "enabled": null,
+          "state": "available",
+          "windows": [
+            {
+              "id": "five_hour",
+              "label": "5-hour",
+              "usedPercent": 23,
+              "resetAt": "2026-11-26T08:45:00Z",
+              "status": "allowed"
+            },
+            {
+              "id": "seven_day",
+              "label": "Weekly",
+              "usedPercent": 61,
+              "resetAt": "2026-11-30T15:00:00Z",
+              "status": "allowed"
+            }
+          ],
+          "observedAt": "2026-11-26T05:32:00Z"
+        }
+      ],
+      "lastAttemptAt": "2026-11-26T05:32:00Z",
+      "lastSuccessAt": "2026-11-26T05:32:00Z"
+    }
+  ],
+  "expectedEnabledCounts": {
+    "cpa-personal": {
+      "enabled": 2,
+      "total": 3
+    },
+    "cpa-second": {
+      "enabled": 1,
+      "total": 1
+    }
+  },
+  "note": "Synthetic aggregate UI contract, not Paseo SDK payload."
+}

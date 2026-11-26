@@ -1,0 +1,39 @@
+# Private local development / AI handoff (not published)
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+/.handoff/
+/.codex/
+/.claude/
+/.gemini/
+/.cursor/
+/paseo-provider-usage-handoff*.zip
+
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Local environments and secrets (never commit)
+.env
+.env.*
+!.env.example
+secrets.json
+secrets.*.json
+config.local.json
+*.local.json
+.paseo/
+.paseo-dev/
+.runtime/
+.local/
+cache/
+snapshot.json
+*.log
+*.pem
+*.key
+
+# Editor / OS
+.DS_Store
+.idea/

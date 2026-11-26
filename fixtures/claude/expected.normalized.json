@@ -1,0 +1,25 @@
+{
+  "sourceId": "claude-reclaude",
+  "observedAt": "2026-11-26T05:32:00Z",
+  "windows": [
+    {
+      "id": "five_hour",
+      "label": "5-hour",
+      "usedPercent": 23,
+      "resetAt": "2026-11-26T08:45:00Z",
+      "status": "allowed"
+    },
+    {
+      "id": "seven_day",
+      "label": "Weekly",
+      "usedPercent": 61,
+      "resetAt": "2026-11-30T15:00:00Z",
+      "status": "allowed"
+    }
+  ],
+  "expectedRemainingPercent": {
+    "five_hour": 77,
+    "seven_day": 39
+  },
+  "note": "Synthetic expected result; observedAt uses the fixed test clock."
+}

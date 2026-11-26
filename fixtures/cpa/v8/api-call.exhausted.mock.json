@@ -1,0 +1,9 @@
+{
+  "status_code": 200,
+  "header": {
+    "Content-Type": [
+      "application/json"
+    ]
+  },
+  "body": "{\"plan_type\":\"plus\",\"rate_limit\":{\"allowed\":false,\"limit_reached\":true,\"primary_window\":{\"used_percent\":100,\"limit_window_seconds\":18000,\"reset_after_seconds\":27780,\"reset_at\":1795698900},\"secondary_window\":{\"used_percent\":27,\"limit_window_seconds\":604800,\"reset_after_seconds\":426480,\"reset_at\":1796097600}}}"
+}

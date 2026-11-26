@@ -1,0 +1,32 @@
+{
+  "note": "Synthetic simplified adapter output. Not a verified Paseo or AGY API schema; model windows are illustrative.",
+  "reports": [
+    {
+      "sourceId": "native-antigravity",
+      "label": "Antigravity",
+      "accounts": [
+        {
+          "id": "mock-agy",
+          "label": "Google account",
+          "enabled": null,
+          "state": "available",
+          "windows": [
+            {
+              "id": "mock-window-1",
+              "label": "5-hour (illustrative)",
+              "usedPercent": 9,
+              "resetAt": "2026-11-26T10:00:00Z"
+            },
+            {
+              "id": "mock-window-2",
+              "label": "Weekly (illustrative)",
+              "usedPercent": 24,
+              "resetAt": "2026-11-30T01:00:00Z"
+            }
+          ],
+          "observedAt": "2026-11-26T05:32:00Z"
+        }
+      ]
+    }
+  ]
+}
