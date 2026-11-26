@@ -33,6 +33,7 @@ snapshot.json
 config-v2.json
 snapshot-v2.json
 keeper-passwords.json
+quota-cache.json
 *.log
 *.pem
 *.key

@@ -46,14 +46,22 @@ async function verify(client, demo, directory) {
   const initial = await counts();
   assert.equal(initial.refresh, 0);
   assert.ok(initial.cache >= 2);
-  const personal = overview.sources.find(s => s.label === "Personal Keeper");
+  const personal = overview.sources.find(s => s.instanceLabel === "Personal Keeper");
+  assert.equal(personal.label, "Codex");
   assert.deepEqual([personal.accounts.filter(a => a.enabled).length, personal.accounts.length], [2, 3]);
   assert.equal(personal.lastAttemptAt, "2026-11-26T07:00:00.000Z");
   assert.equal(Date.parse(personal.lastSuccessAt), Date.parse("2026-11-26T05:32:00Z"));
-  assert.equal(Date.parse(personal.accounts.find(a => a.label === "Demo Pro").observedAt), Date.parse(personal.lastSuccessAt));
-  assert.equal(overview.sources.find(s => s.label === "Second Keeper").accounts[0].state, "unavailable");
-  assert.deepEqual(overview.sources.find(s => s.kind === "claude").accounts[0].windows.map(w => 100 - w.usedPercent), [77, 39, 63]);
-  const native = overview.sources.find(s => s.kind === "native").accounts[0];
+  assert.deepEqual(personal.accounts.map(a => a.label).sort(), ["停用账号", "备用账号", "工作账号"]);
+  assert.equal(Date.parse(personal.accounts.find(a => a.label === "工作账号").observedAt), Date.parse(personal.lastSuccessAt));
+  assert.equal(overview.sources.find(s => s.instanceLabel === "Second Keeper").accounts[0].state, "unavailable");
+  const claudeSource = overview.sources.find(s => s.kind === "claude");
+  assert.equal(claudeSource.label, "Claude");
+  assert.ok(!claudeSource.accounts.some(account => account.label.includes("demo-reclaude")));
+  assert.deepEqual(claudeSource.accounts[0].windows.map(w => 100 - w.usedPercent), [77, 39, 63]);
+  const nativeSource = overview.sources.find(s => s.kind === "native");
+  assert.equal(nativeSource.label, "Antigravity");
+  assert.ok(nativeSource.models.some(model => model.label.includes("Argon")));
+  const native = nativeSource.accounts[0];
   assert.deepEqual(native.windows.map(w => w.usedPercent), [25, 50, 0, 100, 75, null]);
   assert.equal(new Set(native.windows.map(w => w.id)).size, native.windows.length);
 

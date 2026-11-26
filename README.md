@@ -1,6 +1,6 @@
 # Paseo Provider Usage
 
-在 Paseo 侧边栏打开 **Provider Usage**，即可查看各个 CPA Usage Keeper 实例缓存的 Codex 账号额度、Claude Code 订阅窗口以及 Antigravity 的原生额度报告。每个窗口显示剩余比例和本地重置时间。日期按设备时区用中文显示，悬停、键盘聚焦或轻点时间可查看完整日期和时区。Keeper 和 Claude 读数也会出现在 Paseo 全局 Usage 中。
+在 Paseo 侧边栏打开 **Provider Usage**，即可查看 Codex、Claude 和 Antigravity 的剩余额度。每个窗口显示剩余百分比和设备当地的重置时间。悬停、键盘聚焦或轻点时间，可查看完整中文日期和时区。Codex 和 Claude 的读数也会出现在 Paseo 全局 Usage 中。
 
 ## 安装
 
@@ -15,14 +15,12 @@ paseo plugin ls paseo-provider-usage
 
 状态为 `running` 后，在连接该主机的客户端打开侧边栏的 **Provider Usage → 设置**。请保留这份源码目录，daemon 会从这里加载插件。更新源码后，运行 `paseo plugin reload paseo-provider-usage` 加载新版本。
 
-从早期直连 CPA 的开发版升级时，请重新添加 Keeper 实例及其登录密码。升级会沿用 Claude 采集设置、Claude 快照和显示选项。旧 CPA 地址、密钥和额度保留在原数据文件中。
-
 ## 接入数据源
 
-- **CPA Usage Keeper**。在 **CPA Usage Keeper 实例 → 添加实例** 填入实例名称和 Keeper 服务地址（如 `https://keeper.example.com`，含反向代理前缀时请保留该路径）。开启登录的实例还需填写 Keeper 登录密码，免登录实例可留空。点击 **测试连接** 查看发现的 Codex 账号数，再保存。密码保存在 daemon 上。插件已验证 Keeper v2.1.2。[安装 CPA Usage Keeper](https://github.com/Willxup/cpa-usage-keeper/tree/v2.1.2)
-- **读取和更新 Keeper 额度**。打开面板或点击 **重新读取** 可查看 Keeper 缓存。每个账号的最近观测时间来自 Keeper。需要采集新读数时，在目标实例点击 **更新 Keeper 额度**，一次提交该实例启用的 Codex 账号。Keeper 接受任务后，稍后点击 **重新读取** 查看结果。
-- **Claude Code / ReClaude**。在 daemon 上准备 Node.js 22.14 或更高版本，将采集启动器加到原 Claude Provider 的启动命令前，在插件设置中填写对应的 Provider ID 并打开 **被动采集 SDK 额度**。新会话在正常使用中收到额度事件后，会显示五小时、每周及 SDK 上报的 Fable 周额度。具体命令见[配置示例](docs/claude-collection.md)。
-- **Antigravity**。在 Paseo 中配置好 Antigravity Provider 后，可在插件设置中打开或关闭 **显示 Antigravity 原生额度**。使用独立代理时，把现有包装命令和环境保留在 Provider 配置中，启动参数保留 `acp` 和 `--disable-telemetry`。开启显示后，Paseo 0.17.4 按主机读取原生额度，可能同时更新其他原生来源或复用五分钟缓存，侧栏列出 Antigravity 返回的全部模型组和窗口。多个模型共用一个额度组时，界面显示该组的读数。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
+- **Codex**。在 **设置 → Codex → 添加 Keeper 实例** 填入名称和 Keeper 地址（如 `https://keeper.example.com/usage`）。开启登录的实例还需填写密码，密码保存在 daemon 上。点击 **测试连接** 后保存。账号优先显示 Keeper 中设置的别名，其次显示账号备注的首行。添加多个实例时可按实例查看启用数和额度。插件已验证 Keeper v2.1.2。[安装 CPA Usage Keeper](https://github.com/Willxup/cpa-usage-keeper/tree/v2.1.2)
+- **更新 Codex 额度**。打开页面或点击 **重新读取** 查看缓存。要获取新读数，点击目标实例的 **更新额度**。Keeper 会接收该实例已启用账号的批量任务，处理后重新读取即可。
+- **Claude**。在 daemon 上使用 Node.js 22.14 或更高版本，将采集启动器加到原有 Claude Code 或 ReClaude 命令前。在 **设置 → Claude** 编辑关联的 Provider ID，打开 **采集额度**。新会话收到额度事件后显示五小时、每周及该账号上报的 Fable 周额度。[启动命令示例](docs/claude-collection.md)
+- **Antigravity**。先在 Paseo 中配置 Antigravity Provider，再在插件设置中打开 **显示额度**。使用代理时，沿用现有包装命令和环境，保留 `acp` 与 `--disable-telemetry` 参数。每个有单独额度的模型显示自己的读数，共用额度的模型组显示一份剩余比例和重置时间。只在模型目录中出现的型号列在「未单列额度」。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
 
 ## 卸载
 

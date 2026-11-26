@@ -21,9 +21,9 @@ export default function contribute(server: PluginServerContext) {
   if (!existsSync(marker)) {
     store.save({ label: "Personal Keeper", baseUrl: personal, password });
     store.save({ label: "Second Keeper", baseUrl: secondary });
-    store.preferences({ claude: { enabled: true, providerId: "claude" } });
+    store.preferences({ claude: { enabled: true, providerId: "demo-reclaude" } });
     const events = parseClaudeWindows(fixture("claude/rate-limit-event.full.mock.json"));
-    new UsageService(store, () => { throw new Error("Unexpected Keeper call during Claude seed."); }).ingest(events, observedAt);
+    new UsageService(store, () => { throw new Error("Unexpected Keeper call during Claude seed."); }).claude.ingest(events, observedAt);
     writeFileSync(marker, "");
   }
 
@@ -76,6 +76,6 @@ export default function contribute(server: PluginServerContext) {
   };
   return registerPlugin(server, store, {
     fetch: mockFetch, now: () => new Date(readAt),
-    mockNative: antigravitySnapshot(fixture("native/provider-list.mock.json")),
+    mockNative: antigravitySnapshot(fixture("native/provider-list.mock.json"), fixture("native/provider-catalog.mock.json")),
   });
 }
