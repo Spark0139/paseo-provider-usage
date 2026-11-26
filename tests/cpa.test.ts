@@ -20,7 +20,7 @@ test("discovery lists only Codex OAuth credentials in one GET, including disable
     assert.equal(url, base + "/credentials");
     assert.equal(init?.method, "GET");
     assert.equal(new Headers(init?.headers).get("authorization"), "Bearer " + key);
-    assert.equal(init?.redirect, "error");
+    assert.equal(init?.redirect, "manual");
     return Response.json(list);
   } });
   assert.equal(calls, 1);

@@ -41,7 +41,8 @@ function createClient(instance: CpaInstance, key: string, options: Options) {
         method: body ? "POST" : "GET",
         headers: { Authorization: `Bearer ${key}`, ...(body && { "Content-Type": "application/json" }) },
         body: body ? JSON.stringify(body) : undefined,
-        redirect: "error", signal: controller.signal,
+        // Inspect redirects as non-2xx without sending the management key to another URL.
+        redirect: "manual", signal: controller.signal,
       });
       if (!response.ok) throw new CpaError(`CPA management request failed (HTTP ${response.status}).`);
       return await response.json();
