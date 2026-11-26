@@ -44,7 +44,7 @@ export const claudeDiagnosticsRpc = defineRpc({
   name: "claude.diagnostics", input: empty,
   output: z.object({
     providers: z.array(z.object({ id: z.string(), label: z.string() })),
-    stage: z.enum(["disabled", "waitingSession", "sessionOpened", "connected", "observed", "receiverError", "wrapConflict"]),
+    stage: z.enum(["disabled", "waitingSession", "sessionOpened", "connected", "observed", "receiverError", "wrapConflict", "legacyLauncher"]),
     observedAt: z.string().nullable(),
   }),
 });
