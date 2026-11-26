@@ -1,7 +1,7 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Text, View } from "react-native";
 import type { QuotaWindow } from "../shared/types";
-import { RemainingBar } from "./controls";
+import { clampPercent, UsageMeter } from "./controls";
 import { Timestamp } from "./timestamp";
 
 const knownLabels = new Map([
@@ -19,27 +19,66 @@ export function remaining(used: number | null) {
 
 export type RowProps = { theme: PluginTheme; compact: boolean; now: number; showCountdown: boolean };
 
-export function WindowRow({ window, label, theme, compact, now, showCountdown }: RowProps & { window: QuotaWindow; label: string }) {
+// Usage Monitor's quotaPacePercent, expressed in the same direction as our remaining bar.
+function remainingPace(window: QuotaWindow, now: number) {
+  if (!window.resetAt || !window.durationSeconds) return null;
+  const resetsAt = Date.parse(window.resetAt);
+  if (!Number.isFinite(resetsAt) || resetsAt <= now) return null;
+  return clampPercent((resetsAt - now) / (window.durationSeconds * 1000) * 100);
+}
+
+// Adapted from QuotaRow. Keep its title/value header, full-width meter and reset hint.
+export function WindowRow({ window, theme, compact, now, showCountdown }: RowProps & { window: QuotaWindow }) {
   const c = theme.colors;
-  const amount = remaining(window.usedPercent);
-  const condition = window.status === "rejected" ? "已受限"
+  const smallFontSize = compact ? 11 : 12;
+  const valueLabel = window.usedPercent == null ? "—" : `${remaining(window.usedPercent)} 剩余`;
+  const qualifier = window.status === "disabled" ? "已停用"
+    : window.status === "rejected" ? "已受限"
     : window.status === "exhausted" || window.usedPercent === 100 ? "已耗尽"
     : window.status === "allowed_warning" ? "接近限制" : null;
-  const timing = window.resetAt
-    ? <Timestamp iso={window.resetAt} now={now} label="重置" theme={theme} countdown={showCountdown} alignEnd={!compact} />
-    : <Text style={{ color: c.foregroundMuted, fontSize: 12 }}>重置 —</Text>;
-  return <View style={{ paddingVertical: 5, gap: 2 }}>
-    <View style={{ flexDirection: "row", alignItems: "center", gap: compact ? 8 : 14 }}>
-      <Text style={{ color: c.foreground, fontSize: 14, flex: 1 }}>{label}
-        {condition && <Text style={{ color: c.statusWarning, fontSize: 12 }}>　{condition}</Text>}
-      </Text>
-      <View style={compact ? { width: 66 } : { flex: 1, minWidth: 66, maxWidth: 245 }}>
-        {window.usedPercent != null && <RemainingBar used={window.usedPercent} theme={theme} />}
+  return <View style={{ gap: 4 }}>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, flexGrow: 1, flexShrink: 1 }}>
+        <Text style={{ color: c.foreground, fontSize: compact ? 13 : 14, flexShrink: 1 }}>{windowLabel(window)}</Text>
+        {qualifier && <Text style={{ color: window.status === "disabled" ? c.foregroundMuted : c.statusWarning, fontSize: smallFontSize }}>
+          {qualifier}
+        </Text>}
       </View>
-      <Text accessibilityLabel={`剩余 ${amount}`} style={{ color: c.foreground, width: 54, textAlign: "right",
-        fontVariant: ["tabular-nums"], fontSize: 16, fontWeight: "600" }}>{amount}</Text>
-      {!compact && <View style={{ width: 233, alignItems: "flex-end" }}>{timing}</View>}
+      <Text style={{ color: c.foregroundMuted, fontSize: smallFontSize, textAlign: "right", fontVariant: ["tabular-nums"] }}>{valueLabel}</Text>
     </View>
-    {compact && timing}
+    {window.usedPercent !== null && <UsageMeter percentUsed={window.usedPercent} percentFilled={100 - window.usedPercent}
+      pacePercent={remainingPace(window, now)} theme={theme} compact={compact} />}
+    {window.resetAt && <Timestamp iso={window.resetAt} now={now} label="重置" theme={theme} countdown={showCountdown} />}
+  </View>;
+}
+
+type ReadingGroup = { label: string | null; readings: QuotaWindow[] };
+
+// Adapted from groupReadings and ReadingGroups in Usage Monitor's limits.client.tsx.
+function groupReadings(readings: QuotaWindow[]) {
+  const ungrouped: QuotaWindow[] = [];
+  const labelled = new Map<string, ReadingGroup>();
+  for (const reading of readings) {
+    if (!reading.groupLabel) {
+      ungrouped.push(reading);
+      continue;
+    }
+    const existing = labelled.get(reading.groupLabel);
+    if (existing) existing.readings.push(reading);
+    else labelled.set(reading.groupLabel, { label: reading.groupLabel, readings: [reading] });
+  }
+  const groups = [...labelled.values()];
+  if (ungrouped.length) groups.unshift({ label: null, readings: ungrouped });
+  return groups;
+}
+
+export function ReadingGroups({ windows, ...row }: RowProps & { windows: QuotaWindow[] }) {
+  const gap = row.compact ? 8 : 12;
+  return <View style={{ gap }}>
+    {groupReadings(windows).map(group => <View key={group.label === null ? "ungrouped" : `group:${group.label}`} style={{ gap }}>
+      {group.label && <Text accessibilityRole="header" style={{ color: row.theme.colors.foregroundMuted, fontSize: row.compact ? 11 : 12,
+        fontWeight: "600" }}>{group.label}</Text>}
+      {group.readings.map(window => <WindowRow key={window.id} window={window} {...row} />)}
+    </View>)}
   </View>;
 }

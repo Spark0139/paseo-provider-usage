@@ -76,6 +76,6 @@ export default function contribute(server: PluginServerContext) {
   };
   return registerPlugin(server, store, {
     fetch: mockFetch, now: () => new Date(readAt),
-    mockNative: antigravitySnapshot(fixture("native/provider-list.mock.json"), fixture("native/provider-catalog.mock.json")),
+    mockNative: antigravitySnapshot(fixture("native/provider-list.mock.json")),
   });
 }

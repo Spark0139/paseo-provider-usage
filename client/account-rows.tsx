@@ -3,8 +3,7 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { Account, SourceSnapshot } from "../shared/types";
-import { AntigravityRows } from "./antigravity-rows";
-import { WindowRow, windowLabel, remaining, type RowProps } from "./window-row";
+import { ReadingGroups, windowLabel, remaining, type RowProps } from "./window-row";
 import { Timestamp } from "./timestamp";
 
 const stateLabels = {
@@ -23,10 +22,10 @@ function AccountState({ account, keeper, theme }: { account: Account; keeper: bo
 }
 
 type AccountProps = RowProps & {
-  models?: SourceSnapshot["models"]; account: Account; kind: SourceSnapshot["kind"]; sourceLabel: string; initialOpen: boolean; singleReport: boolean;
+  account: Account; kind: SourceSnapshot["kind"]; sourceLabel: string; initialOpen: boolean; singleReport: boolean;
 };
 
-export function AccountRows({ models, account, kind, sourceLabel, initialOpen, singleReport, ...row }: AccountProps) {
+export function AccountRows({ account, kind, sourceLabel, initialOpen, singleReport, ...row }: AccountProps) {
   const [expanded, setExpanded] = useState<boolean | null>(null);
   const { theme, compact, now } = row;
   const c = theme.colors;
@@ -34,8 +33,7 @@ export function AccountRows({ models, account, kind, sourceLabel, initialOpen, s
   const windows = account.windows;
   const preview = windows.slice(0, 2).map(w => `${windowLabel(w)} ${remaining(w.usedPercent)}`).join("   ");
   const state = <AccountState account={account} keeper={kind === "cpa"} theme={theme} />;
-  return <View style={{ borderTopWidth: 1, borderTopColor: c.border, paddingHorizontal: compact ? 12 : 16,
-    paddingVertical: singleReport ? 8 : 4 }}>
+  return <View style={{ borderTopWidth: singleReport ? 0 : 1, borderTopColor: c.border, gap: 4 }}>
     {singleReport
       ? <View style={{ flexDirection: "row", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         {kind !== "claude" && account.label !== sourceLabel && <Text style={{ color: c.foreground, fontWeight: "500" }}>{account.label}</Text>}
@@ -54,14 +52,12 @@ export function AccountRows({ models, account, kind, sourceLabel, initialOpen, s
         </View>
       </Pressable>}
     {account.error && <Text style={{ color: c.statusWarning, fontSize: 13, paddingVertical: 3 }}>{account.error}</Text>}
-    {open && <View style={{ paddingBottom: singleReport ? 0 : 6 }}>
-      {kind === "native"
-        ? <AntigravityRows windows={windows} models={models} {...row} />
-        : windows.map(window => <WindowRow key={window.id} window={window} label={windowLabel(window)} {...row} />)}
-      {!windows.length && !models?.length && !account.error && <Text style={{ color: c.foregroundMuted, fontSize: 13 }}>
+    {open && <View style={{ gap: compact ? 8 : 12 }}>
+      {windows.length > 0 && <ReadingGroups windows={windows} {...row} />}
+      {!windows.length && !account.error && <Text style={{ color: c.foregroundMuted, fontSize: 13 }}>
         {kind === "claude" ? "等待首次额度事件" : "暂无额度窗口"}
       </Text>}
-      {account.observedAt && <Timestamp label="最近观测" iso={account.observedAt} now={now} theme={theme} />}
+      {(!singleReport || kind === "native") && account.observedAt && <Timestamp label="最近观测" iso={account.observedAt} now={now} theme={theme} />}
     </View>}
   </View>;
 }

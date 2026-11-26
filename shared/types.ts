@@ -3,7 +3,7 @@ import { providers, type ProviderKind } from "./providers";
 
 export const windowSchema = z.object({
   id: z.string(), label: z.string(), usedPercent: z.number().min(0).max(100).nullable(),
-  resetAt: z.string().nullable(), status: z.string().optional(), durationSeconds: z.number().positive().optional(),
+  groupLabel: z.string().optional(), resetAt: z.string().nullable(), status: z.string().optional(), durationSeconds: z.number().positive().optional(),
 });
 export const accountSchema = z.object({
   id: z.string(), label: z.string(), enabled: z.boolean().nullable(),
@@ -14,7 +14,6 @@ export const accountSchema = z.object({
 export const snapshotSchema = z.object({
   sourceId: z.string(), kind: z.enum(Object.keys(providers) as ProviderKind[]), label: z.string(),
   instanceLabel: z.string().optional(),
-  models: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
   accounts: z.array(accountSchema), lastAttemptAt: z.string().nullable(),
   lastSuccessAt: z.string().nullable(), error: z.string().optional(),
 });

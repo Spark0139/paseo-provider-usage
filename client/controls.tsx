@@ -29,14 +29,24 @@ export function Button({ label, onPress, disabled = false, theme, danger = false
   </Pressable>;
 }
 
-// Bar geometry and consumption thresholds adapted from Usage Monitor's UsageMeter.
-export function RemainingBar({ used, theme }: { used: number; theme: PluginTheme }) {
-  const filled = Math.max(0, Math.min(100, 100 - used));
+// Bar-only branch of Usage Monitor's UsageMeter in client/meter.client.tsx.
+export function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+export function UsageMeter({ percentUsed, percentFilled, pacePercent, theme, compact }: {
+  percentUsed: number; percentFilled: number; pacePercent: number | null; theme: PluginTheme; compact: boolean;
+}) {
+  const fill = clampPercent(percentFilled);
+  const height = compact ? 4 : 6;
+  const borderRadius = height / 2;
   const c = theme.colors;
-  const tone = used > 90 ? c.statusDanger : used >= 70 ? c.statusWarning : c.accent;
+  const tone = percentUsed > 90 ? c.statusDanger : percentUsed >= 70 ? c.statusWarning : c.accent;
   return <View accessibilityRole="progressbar" accessibilityLabel="剩余额度"
-    accessibilityValue={{ min: 0, max: 100, now: filled }} style={{ height: 5, borderRadius: 3,
-      overflow: "hidden", backgroundColor: c.surface2 }}>
-    <View style={{ height: "100%", width: `${filled}%`, backgroundColor: tone }} />
+    aria-valuemin={0} aria-valuemax={100} aria-valuenow={fill}
+    style={{ height, borderRadius, overflow: "hidden", backgroundColor: c.surface2 }}>
+    <View style={{ height, borderRadius, width: `${fill}%`, backgroundColor: tone }} />
+    {pacePercent !== null && <View style={{ position: "absolute", top: 0, bottom: 0, width: 2, marginLeft: -1,
+      left: `${clampPercent(pacePercent)}%`, backgroundColor: c.foregroundMuted }} />}
   </View>;
 }
