@@ -2,11 +2,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { antigravitySnapshot } from "./client/usage";
 import { registerPlugin } from "./server/paseo/plugin";
 import { parseClaudeWindows } from "./server/sources/claude";
 import { SettingsStore } from "./server/storage/store";
 import { UsageService } from "./server/usage/service";
-import { snapshotSchema } from "./shared/types";
 
 export default function contribute(server: PluginServerContext) {
   const directory = join(process.env.PASEO_HOME!, "provider-usage-mock");
@@ -74,9 +74,8 @@ export default function contribute(server: PluginServerContext) {
     }
     return new Response(null, { status: 404 });
   };
-  const native = fixture("native/usage.mock.json").reports[0];
   return registerPlugin(server, store, {
     fetch: mockFetch, now: () => new Date(readAt),
-    mockNative: snapshotSchema.parse({ ...native, kind: "native", lastAttemptAt: observedAt, lastSuccessAt: observedAt }),
+    mockNative: antigravitySnapshot(fixture("native/provider-list.mock.json")),
   });
 }
