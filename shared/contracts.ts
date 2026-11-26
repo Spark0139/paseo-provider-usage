@@ -37,12 +37,14 @@ export const keeperRefreshStatusRpc = defineRpc({
   name: "keeper.refresh.status", input: z.object({ id: z.string() }), output: refreshStatus,
 });
 
+export const claudeSnapshotRpc = defineRpc({
+  name: "claude.snapshot", input: empty, output: snapshotSchema.nullable(),
+});
 export const claudeDiagnosticsRpc = defineRpc({
   name: "claude.diagnostics", input: empty,
   output: z.object({
     providers: z.array(z.object({ id: z.string(), label: z.string() })),
-    launcher: z.enum(["listed", "unlisted", "unknown"]),
-    stage: z.enum(["disabled", "waitingSession", "sessionOpened", "connected", "observed", "receiverError"]),
+    stage: z.enum(["disabled", "waitingSession", "sessionOpened", "connected", "observed", "receiverError", "wrapConflict"]),
     observedAt: z.string().nullable(),
   }),
 });
