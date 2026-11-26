@@ -9,42 +9,61 @@
       "status": "available",
       "windows": [
         {
-          "id": "5h", "label": "Gemini Pro · 5h", "shortLabel": "Gemini Pro 5h",
-          "usedPct": 25, "remainingPct": 75, "resetsAt": "2026-11-26T09:45:00Z",
-          "durationSeconds": 18000, "tone": "ok"
+          "id": "gemini-5h",
+          "label": "Gemini \u00b7 5h",
+          "shortLabel": "Gemini 5h",
+          "usedPct": 25,
+          "remainingPct": 75,
+          "resetsAt": "2026-11-26T09:45:00Z",
+          "durationSeconds": 18000,
+          "tone": "ok"
         },
         {
-          "id": "weekly", "label": "Gemini Pro · Weekly", "shortLabel": "Gemini Pro wk", "summary": true,
-          "usedPct": 50, "remainingPct": 50, "resetsAt": "2026-11-30T01:00:00Z",
-          "durationSeconds": 604800, "tone": "ok"
+          "id": "gemini-weekly",
+          "label": "Gemini \u00b7 Weekly",
+          "shortLabel": "Gemini wk",
+          "summary": true,
+          "usedPct": 50,
+          "remainingPct": 50,
+          "resetsAt": "2026-11-30T01:00:00Z",
+          "durationSeconds": 604800,
+          "tone": "ok"
         },
         {
-          "id": "5h", "label": "Gemini Flash · 5h", "shortLabel": "Gemini Flash 5h",
-          "usedPct": 0, "remainingPct": 100, "resetsAt": null, "durationSeconds": 18000, "tone": "ok"
+          "id": "3p-5h",
+          "label": "Claude and GPT \u00b7 5h",
+          "shortLabel": "Claude and GPT 5h",
+          "usedPct": 0,
+          "remainingPct": 100,
+          "resetsAt": null,
+          "durationSeconds": 18000,
+          "tone": "ok"
         },
         {
-          "id": "weekly", "label": "Gemini Flash · Weekly", "shortLabel": "Gemini Flash wk", "summary": true,
-          "usedPct": 100, "remainingPct": 0, "resetsAt": "2026-11-30T05:00:00Z",
-          "durationSeconds": 604800, "tone": "danger"
-        },
-        {
-          "id": "weekly", "label": "Claude and GPT · Weekly", "shortLabel": "Claude and GPT wk", "summary": true,
-          "usedPct": 75, "remainingPct": 25, "resetsAt": "2026-12-01T06:00:00Z",
-          "durationSeconds": 604800, "tone": "warning"
-        },
-        {
-          "id": "monthly", "label": "Claude and GPT · Monthly · Disabled", "shortLabel": "Claude and GPT mo",
-          "usedPct": null, "remainingPct": null, "resetsAt": null, "tone": "default"
+          "id": "3p-weekly",
+          "label": "Claude and GPT \u00b7 Weekly",
+          "shortLabel": "Claude and GPT wk",
+          "summary": true,
+          "usedPct": 75,
+          "remainingPct": 25,
+          "resetsAt": "2026-12-01T06:00:00Z",
+          "durationSeconds": 604800,
+          "tone": "warning"
         }
       ],
-      "balances": [], "details": [], "error": null
+      "balances": [],
+      "details": [],
+      "error": null
     },
     {
       "providerId": "keeper-codex-quota",
       "displayName": "Keeper Codex (Demo account)",
       "planLabel": null,
       "status": "available",
-      "windows": [], "balances": [], "details": [], "error": null
+      "windows": [],
+      "balances": [],
+      "details": [],
+      "error": null
     }
   ]
 }
