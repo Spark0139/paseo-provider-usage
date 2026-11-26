@@ -1,15 +1,16 @@
-# Observe Claude Code quota
+# 接入 Claude Code 或 ReClaude 额度
 
-In **设置 → Claude**, use **关联 Provider → 编辑** to enter the Claude provider ID, then enable **采集额度**. One provider and one login supply the shared global quota.
+在 **Provider Usage → 设置 → Claude** 选择运行 Claude Code 的 Paseo 启动配置，并打开 **采集额度**。在目标 daemon 主机上执行 `paseo provider ls`，第一列 `PROVIDER` 就是 ID。比如，`agents.providers.claude` 的命令可以是 `reclaude`，对应的 ID 仍然是 `claude`。插件按一个启动配置记录额度。
 
-On the daemon, find this plugin's installation directory with `paseo plugin ls paseo-provider-usage`. In that Claude provider's Paseo configuration, put the absolute Node.js executable and the plugin's launcher before your existing command. Preserve all existing launcher arguments and provider environment settings. For example, an existing `reclaude` provider could use this command array.
+如果你平时在 **Terminal** 中点击名为 **Claude Code** 的快捷方式，它会在终端运行交互式 CC。额度事件来自 Paseo 的 Agent SDK 会话。请在下面配置好 **Agent Provider**，然后从 **Chat** 打开它。
+
+在运行会话的 daemon 主机上，用 `paseo plugin ls paseo-provider-usage` 查看插件安装目录。用 `command -v node` 和 `command -v reclaude` 查找可执行文件。编辑所选 Provider 的启动命令，在原命令前加上 **Node.js 22.14+ 的绝对路径**和**插件目录下的 `server/sources/claude-launch.cjs` 的绝对路径**。下面以 ID 为 `claude`、命令为 `reclaude` 为例。请替换示例中的三处路径，保留原有参数、环境和其他配置。
 
 ```json
 {
   "agents": {
     "providers": {
-      "reclaude": {
-        "extends": "claude",
+      "claude": {
         "command": [
           "/absolute/path/to/node",
           "/absolute/path/to/paseo-provider-usage/server/sources/claude-launch.cjs",
@@ -21,6 +22,10 @@ On the daemon, find this plugin's installation directory with `paseo plugin ls p
 }
 ```
 
-Apply the provider configuration on your daemon and open a new session with that provider. The next normal turn that emits subscription utilization updates the last observation time and quota windows. A session can run for a while before Claude sends a new reading. Reopen the session after changing providers, toggling collection, or reloading the plugin.
+应用 Provider 配置后，在 Paseo 用这个 Provider **新开一个会话**，正常发送消息。下次 Claude Code 的 SDK 发出含额度的事件时，插件会自动显示读数及观测时间。SDK 可能间隔多个回合才发送一次。已经运行的 CC 进程会沿用启动时的环境；切换配置、重新开启采集或重新加载插件后，需要重新启动对应的会话进程。
 
-The launcher observes normal SDK stdout and sends five-hour, weekly and reported Fable weekly windows to a private local socket. Fable appears after the selected provider emits its own window. Its reset and remaining quota are tracked separately from the general weekly allowance. The daemon stores the latest quota snapshot. A refresh displays the last known observation without starting Claude. Removing the two prepended arguments restores the original provider command.
+回到 **设置 → Claude → 检查接入** 查看进度。如果显示「会话已匹配，尚未收到启动器连接」，请核对所选 Provider 的启动命令和脚本路径。如果显示「启动器已连接，等待额度事件」，接入已生效，在这个 Chat 继续使用即可。
+
+通过 Git 仓库地址安装时，Paseo 会为更新后的版本分配新的源码目录。更新插件后用 `paseo plugin ls paseo-provider-usage` 核对 `DIRECTORY`，将 Provider 中的采集脚本路径指向当前版本。
+
+采集器从该进程的 SDK 输出中提取五小时、每周和 Fable 周额度，通过私有本地套接字交给 daemon。每个窗口在 SDK 上报后显示。卸载时移除启动命令最前面加上的两项即可恢复原命令。

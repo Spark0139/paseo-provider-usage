@@ -1,5 +1,5 @@
 # Fixture catalog
 
-All fixtures are synthetic. The Keeper samples cover identities, cached account quotas, a cached failure and a batch refresh response based on Keeper v2.1.2. Claude samples model the SDK event shape. The native provider-list sample contains the Gemini and Claude/GPT five-hour and weekly pools reported by Antigravity.
+All fixtures are synthetic. The Keeper v2.1.2 samples cover identities, cached quotas, a cached failure, a batch refresh receipt and an individual task status. Claude samples model the SDK event shape. The native provider-list sample contains the Gemini and Claude/GPT five-hour and weekly pools reported by Antigravity.
 
 Use the fixed test clock `2026-11-26T05:32:00Z`. The full Claude event expects 77%, 39% and 63% remaining for five-hour, weekly and Fable windows. The partial event and stream cover missing windows and ordinary SDK messages. The normalized overview is a UI example, not a vendor response. Do not commit credentials or actual account/session observations.
