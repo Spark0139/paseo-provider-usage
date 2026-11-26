@@ -16,8 +16,12 @@ function subscribeToAppState(notify: () => void) {
 }
 const appIsActive = () => AppState.currentState !== "background" && AppState.currentState !== "inactive";
 
+export function useAppActive() {
+  return useSyncExternalStore(subscribeToAppState, appIsActive, appIsActive);
+}
+
 export function useUsage(host: string, surface: Surface) {
-  const active = useSyncExternalStore(subscribeToAppState, appIsActive, appIsActive);
+  const active = useAppActive();
   const read = useRpc(overviewRpc);
   const paseo = usePaseo();
   const cache = useQueryClient();
@@ -50,6 +54,7 @@ export function useUsage(host: string, surface: Surface) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!active || surface === "rail") return;
+    setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, [active, surface]);
@@ -60,7 +65,7 @@ export function useUsage(host: string, surface: Surface) {
 
 export function useKeeperUpdate(host: string, id: string, visible: boolean) {
   const cache = useQueryClient();
-  const active = useSyncExternalStore(subscribeToAppState, appIsActive, appIsActive);
+  const active = useAppActive();
   const submit = useRpc(refreshKeeperRpc);
   const read = useRpc(keeperRefreshStatusRpc);
   const queryKey = ["provider-usage", host, "keeper-update", id] as const;
@@ -93,11 +98,11 @@ export function useKeeperUpdate(host: string, id: string, visible: boolean) {
   if (update.isError) message = "提交更新失败";
   else if (status.isError) message = "暂时无法读取更新状态";
   else if (result?.phase === "pending") message = `正在更新 · 剩余 ${result.remaining}`;
-  else if (result?.phase === "unconfirmed") message = "已重读缓存，部分任务状态未确认";
+  else if (result?.phase === "unconfirmed") message = "部分任务的结果尚未确认";
   else if (result?.phase === "completed" && result.error) message = "任务已结束，最新额度尚未读到";
   else if (result?.phase === "completed") message = result.failed
     ? `更新结束 · 成功 ${result.completed} · 失败 ${result.failed}`
-    : `已更新 ${result.completed} 个账号`;
+    : result.completed ? `已更新 ${result.completed} 个账号` : "没有可更新的账号";
   return { submit: () => update.mutate(), submitting: update.isPending, pending: result?.phase === "pending", message,
     warning: update.isError || status.isError || !!result?.error || result?.phase === "unconfirmed" || !!result?.failed };
 }
