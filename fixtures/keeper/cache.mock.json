@@ -1,0 +1,80 @@
+{
+  "items": [
+    {
+      "auth_index": "demo-pro",
+      "status": "completed",
+      "refreshed_at": "2026-11-26T05:32:00Z",
+      "quota": {
+        "id": "demo-pro",
+        "quota": [
+          {
+            "key": "rate_limit.primary_window",
+            "label": "5h",
+            "scope": "window",
+            "usedPercent": 18,
+            "window": {
+              "seconds": 18000
+            },
+            "resetAt": "2026-11-26T10:30:00Z",
+            "allowed": true,
+            "limitReached": false
+          },
+          {
+            "key": "rate_limit.secondary_window",
+            "label": "Weekly",
+            "scope": "window",
+            "usedPercent": 44,
+            "window": {
+              "seconds": 604800
+            },
+            "resetAt": "2026-11-30T01:00:00Z",
+            "allowed": true,
+            "limitReached": false
+          }
+        ],
+        "subscription": {
+          "provider": "codex",
+          "plan": "Pro"
+        }
+      }
+    },
+    {
+      "auth_index": "demo-plus",
+      "status": "completed",
+      "refreshed_at": "2026-11-26T05:32:00Z",
+      "quota": {
+        "id": "demo-plus",
+        "quota": [
+          {
+            "key": "rate_limit.primary_window",
+            "label": "5h",
+            "scope": "window",
+            "usedPercent": 100,
+            "window": {
+              "seconds": 18000
+            },
+            "resetAt": "2026-11-26T13:15:00Z",
+            "allowed": false,
+            "limitReached": true
+          },
+          {
+            "key": "rate_limit.secondary_window",
+            "label": "Weekly",
+            "scope": "window",
+            "usedPercent": 27,
+            "window": {
+              "seconds": 604800
+            },
+            "resetAt": "2026-12-01T04:00:00Z",
+            "allowed": false,
+            "limitReached": true
+          }
+        ],
+        "subscription": {
+          "provider": "codex",
+          "plan": "Plus"
+        }
+      }
+    }
+  ]
+}
