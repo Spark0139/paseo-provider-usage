@@ -1,6 +1,6 @@
 # Run the demo locally
 
-From a source checkout, install the development dependencies with `npm ci`. Use Node 22.14 or later and Paseo CLI 0.17.4 on macOS or Linux. For the browser demo, use a Paseo distribution that includes the bundled web client.
+From a source checkout, install the development dependencies with `npm ci`. Use Node 22.14 or later and Paseo CLI 0.17.5 on macOS or Linux. For the browser demo, use a Paseo distribution that includes the bundled web client.
 
 ```sh
 node scripts/mock-daemon.mjs

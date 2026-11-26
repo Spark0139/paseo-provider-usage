@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Claude quota collection now attaches automatically when the selected Claude Code or ReClaude provider starts a Chat on Paseo 0.17.5 or later. Upgrading from manual launcher setup requires restoring the original provider command once.
+- Claude capture diagnostics report launch wrapper conflicts and collector startup failures.
+- The visible Claude composer pill and popover update from the daemon's last captured reading.
+
 ## 0.1.0
 
 - Added CPA Usage Keeper integration for multiple instances, with Codex account discovery, enabled counts, per-account cached quota windows and their original observation times.
