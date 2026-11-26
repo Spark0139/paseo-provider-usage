@@ -26,7 +26,7 @@ function sessionCookie(headers: Headers, secure: boolean): Session | null {
   let expiresAt = expires ? Date.parse(expires) : Infinity;
   if (maxAge !== undefined) expiresAt = Date.now() + Number(maxAge) * 1000;
   if ((params.has("secure") && !secure) || !cookie.slice(sessionName.length + 1) || !(expiresAt > Date.now())) {
-    throw new Error("Keeper returned an unusable session cookie.");
+    throw new Error("Keeper 返回的登录会话无效。");
   }
   return { cookie, expiresAt };
 }
@@ -54,7 +54,7 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
       }
       return { status, headers, data: await response.json() as unknown };
     } catch {
-      throw new Error(controller.signal.aborted ? "Keeper request timed out." : "Could not read the Keeper response.");
+      throw new Error(controller.signal.aborted ? "Keeper 请求超时。" : "读取 Keeper 响应失败。");
     } finally {
       clearTimeout(timeout);
     }
@@ -62,7 +62,7 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
 
   async function login() {
     const { status, headers } = await exchange("/auth/login", null, { password });
-    if (status !== 204) throw new Error(`Keeper sign-in failed (HTTP ${status}).`);
+    if (status !== 204) throw new Error(`Keeper 登录失败（HTTP ${status}）。`);
     session = sessionCookie(headers, new URL(base).protocol === "https:");
     return session;
   }
@@ -72,7 +72,7 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
     const used = currentSession();
     let response = await exchange(path, used, body);
     if (response.status === 401) {
-      if (!password) throw new Error("Keeper requires a login password (HTTP 401).");
+      if (!password) throw new Error("Keeper 需要登录密码（HTTP 401）。");
       if (session === used) session = null;
       let replacement = currentSession();
       if (!replacement) {
@@ -81,7 +81,7 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
       }
       response = await exchange(path, replacement, body);
     }
-    if (response.status < 200 || response.status >= 300) throw new Error(`Keeper request failed (HTTP ${response.status}).`);
+    if (response.status < 200 || response.status >= 300) throw new Error(`Keeper 请求失败（HTTP ${response.status}）。`);
     return response.data;
   }
 
@@ -102,12 +102,12 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
       const indexes = new Set(identities.filter(item => item.disabled === false && item.identity).map(item => item.identity));
       if (!indexes.size) return { queued: 0, pending: 0, failed: 0 };
       const parsed = refreshResponse.safeParse(await request("/quota/refresh", { auth_indexes: [...indexes] }));
-      if (!parsed.success) throw new Error("Invalid Keeper refresh acknowledgement.");
+      if (!parsed.success) throw new Error("Keeper 返回的更新任务结果无效。");
       const { tasks, rejected, limit, accepted, skipped } = parsed.data;
       const acknowledged = [...(tasks ?? []), ...(rejected ?? [])].map(item => item.authIndex);
       if (limit !== indexes.size || accepted + skipped !== limit || (tasks?.length ?? 0) !== accepted ||
           new Set(acknowledged).size !== acknowledged.length || acknowledged.some(index => !indexes.has(index))) {
-        throw new Error("Invalid Keeper refresh acknowledgement.");
+        throw new Error("Keeper 返回的更新任务结果无效。");
       }
       // Unsupported credentials may be skipped without a rejected row.
       const pending = (rejected ?? []).filter(item => item.error === "duplicate").length;
