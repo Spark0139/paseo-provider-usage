@@ -188,7 +188,24 @@ test("partial Claude events survive restart and respect identity changes", t => 
   const restarted = new UsageService(new SettingsStore(store.directory), () => assert.fail());
   assert.deepEqual(restarted.claudeSnapshot().accounts[0].windows.map(w => w.usedPercent), [18, 61]);
   assert.equal(restarted.claudeSnapshot().lastSuccessAt, observedAt);
+
+  const fable = { id: "seven_day_overage_included", label: "Fable 周额度", usedPercent: 100,
+    resetAt: "2026-12-02T15:00:00.000Z", status: "rejected" };
+  restarted.ingest([fable], observedAt);
+  restarted.ingest([{ ...fable, usedPercent: null }], observedAt);
+  const account = restarted.claudeSnapshot().accounts[0];
+  assert.deepEqual(account.windows, [reading.windows[0], second, fable]);
+  assert.equal(account.state, "available");
+  const renewed = { ...fable, usedPercent: null, status: "allowed", resetAt: "2026-12-09T15:00:00.000Z" };
+  restarted.ingest([renewed], "2026-12-02T15:01:00.000Z");
+  const saved = new UsageService(new SettingsStore(store.directory), () => assert.fail());
+  assert.deepEqual(saved.claudeSnapshot().accounts[0].windows, [reading.windows[0], second, renewed]);
+
   store.preferences({ claude: { enabled: true, providerId: "other-login" } });
   service.prune();
   assert.equal(service.claudeSnapshot().lastSuccessAt, null);
+  service.ingest([fable], observedAt);
+  assert.equal(service.claudeSnapshot().accounts[0].state, "unknown");
+  service.ingest([{ ...second, usedPercent: 100 }], observedAt);
+  assert.equal(service.claudeSnapshot().accounts[0].state, "exhausted");
 });

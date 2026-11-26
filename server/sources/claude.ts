@@ -4,6 +4,7 @@ import { createServer, type Socket } from "node:net";
 import { join } from "node:path";
 import { z } from "zod";
 import { windowSchema, type ClaudeSettings, type QuotaWindow } from "../../shared/types";
+import { claudeWindowIds } from "./claude-protocol.cjs";
 export { parseClaudeWindows } from "./claude-protocol.cjs";
 
 type Options = {
@@ -12,7 +13,7 @@ type Options = {
   ingest: (windows: QuotaWindow[], observedAt: string) => void;
 };
 
-const observation = z.array(windowSchema).min(1).max(2);
+const observation = z.array(windowSchema.extend({ id: z.enum(claudeWindowIds) })).min(1).max(claudeWindowIds.length);
 const socketEnv = "PASEO_PROVIDER_USAGE_SOCKET";
 
 function openReceiver(directory: string, receive: (windows: QuotaWindow[]) => void) {
