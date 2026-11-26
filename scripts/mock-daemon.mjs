@@ -33,42 +33,61 @@ async function freePort() {
   return port;
 }
 
-async function verify(client, demo) {
+async function verify(client, demo, directory) {
   const rpc = (method, input = {}) => client.invokePluginRpc(demo, method, input);
+  const counts = async () => JSON.parse(await readFile(join(directory, "mock-requests.json"), "utf8"));
   const settings = await rpc("config.read");
   assert.equal(settings.instances.length, 2);
-  assert.ok(settings.instances.every(i => i.hasSecret));
-  assert.ok(!JSON.stringify(settings).includes("synthetic-demo-key"));
-  const overview = await rpc("usage.overview", { refresh: true });
+  assert.deepEqual(settings.instances.map(i => i.hasPassword), [true, false]);
+  assert.ok(!JSON.stringify(settings).includes("synthetic-demo-password"));
+  assert.ok(!JSON.stringify(settings).includes("demo-session"));
+  const overview = await rpc("usage.overview");
   assert.equal(overview.mock, true);
-  const personal = overview.sources.find(s => s.label === "Personal CPA");
+  const initial = await counts();
+  assert.equal(initial.refresh, 0);
+  assert.ok(initial.cache >= 2);
+  const personal = overview.sources.find(s => s.label === "Personal Keeper");
   assert.deepEqual([personal.accounts.filter(a => a.enabled).length, personal.accounts.length], [2, 3]);
-  assert.equal(overview.sources.find(s => s.label === "Second CPA").accounts[0].state, "unavailable");
+  assert.equal(personal.lastAttemptAt, "2026-11-26T07:00:00.000Z");
+  assert.equal(Date.parse(personal.lastSuccessAt), Date.parse("2026-11-26T05:32:00Z"));
+  assert.equal(Date.parse(personal.accounts.find(a => a.label === "Demo Pro").observedAt), Date.parse(personal.lastSuccessAt));
+  assert.equal(overview.sources.find(s => s.label === "Second Keeper").accounts[0].state, "unavailable");
   assert.deepEqual(overview.sources.find(s => s.kind === "claude").accounts[0].windows.map(w => 100 - w.usedPercent), [77, 39]);
   assert.equal(overview.sources.filter(s => s.kind === "native").length, 1);
 
-  const draft = { label: "Temporary pool", baseUrl: "https://personal.cpa.invalid", key: "synthetic-demo-key" };
-  assert.deepEqual(await rpc("instance.test", draft), { count: 3 });
-  await assert.rejects(rpc("instance.test", { ...draft, key: "synthetic-incorrect-key" }), /401/);
-  const saved = await rpc("instance.save", draft);
+  await rpc("usage.overview", { refresh: true });
+  const reread = await counts();
+  assert.ok(reread.cache > initial.cache);
+  assert.equal(reread.refresh, 0);
+
+  const draft = { label: "Temporary pool", baseUrl: "https://personal.keeper.invalid", password: "synthetic-demo-password" };
+  assert.deepEqual(await rpc("keeper.test", draft), { count: 3 });
+  await assert.rejects(rpc("keeper.test", { ...draft, password: "synthetic-incorrect-password" }), /401/);
+  assert.deepEqual(await rpc("keeper.test", { label: "Open", baseUrl: "https://second.keeper.invalid" }), { count: 1 });
+  const saved = await rpc("keeper.save", draft);
   const temporary = saved.instances.find(i => i.label === draft.label);
-  assert.ok(temporary?.hasSecret);
-  await rpc("instance.save", { ...temporary, key: "", label: "Renamed" });
-  const cleared = await rpc("instance.clear-key", { id: temporary.id });
-  assert.equal(cleared.instances.find(i => i.id === temporary.id).hasSecret, false);
-  await rpc("instance.delete", { id: temporary.id });
+  assert.ok(temporary?.hasPassword);
+  const renamed = await rpc("keeper.save", { id: temporary.id, baseUrl: temporary.baseUrl, label: "Renamed" });
+  assert.ok(renamed.instances.find(i => i.id === temporary.id).hasPassword);
+  const cleared = await rpc("keeper.clear-password", { id: temporary.id });
+  assert.equal(cleared.instances.find(i => i.id === temporary.id).hasPassword, false);
+  await rpc("keeper.delete", { id: temporary.id });
   const reports = (await client.listUsageReports({ forceRefresh: true })).reports;
-  const cpa = reports.filter(r => r.sourceId === "cpa-codex-quota");
-  assert.deepEqual(cpa.map(r => r.report.status).sort(), ["available", "available", "error", "unavailable"]);
+  const keeper = reports.filter(r => r.sourceId === "keeper-codex-quota");
+  assert.deepEqual(keeper.map(r => r.report.status).sort(), ["available", "available", "error", "unavailable"]);
   const claude = reports.filter(r => r.sourceId === "claude-passive-quota");
   assert.equal(claude.length, 1);
   assert.deepEqual(claude[0].report.windows.map(w => w.usedPct), [23, 61]);
+  assert.equal((await counts()).refresh, 0);
+  assert.deepEqual(await rpc("keeper.refresh", { id: personal.sourceId }), { queued: 1, pending: 1, failed: 0 });
+  assert.equal((await counts()).refresh, 1);
   const before = await rpc("config.preferences", { display: { showResetCountdown: false } });
   const reload = await client.reloadPlugin(demo);
   assert.equal(reload.status, "running");
   assert.deepEqual(await rpc("config.read"), before);
   const restored = await rpc("usage.overview");
   assert.deepEqual(restored.sources, overview.sources);
+  assert.equal((await counts()).refresh, 1);
   assert.equal(restored.display.showResetCountdown, false);
   await rpc("config.preferences", { display: { showResetCountdown: true } });
 }
@@ -137,7 +156,7 @@ try {
   assert.equal((await client.invokePluginRpc(id, "usage.overview", {})).mock, false);
   await client.removePlugin(id);
   await install(stage, demoId);
-  await verify(client, demoId);
+  await verify(client, demoId, mockDir);
   console.log("Production install, mock settings, quota reports and reload passed.");
   if (ui) {
     console.log(`Open http://${address}/ in a browser. Press Ctrl+C here to stop.`);

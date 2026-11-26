@@ -27,17 +27,17 @@ function InstanceEditor({ instance, theme, busy, run, accept, notify, close }: {
   const remove = useRpc(deleteInstanceRpc);
   const [label, setLabel] = useState(instance?.label ?? "");
   const [url, setUrl] = useState(instance?.baseUrl ?? "");
-  const [key, setKey] = useState("");
+  const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState<"clear" | "remove" | null>(null);
-  const draft = () => ({ id: instance?.id, label: label.trim(), baseUrl: url.trim(), key: key || undefined });
-  const incomplete = !label.trim() || !url.trim() || (!instance?.hasSecret && !key.trim());
+  const draft = () => ({ id: instance?.id, label: label.trim(), baseUrl: url.trim(), password: password || undefined });
+  const incomplete = !label.trim() || !url.trim();
   return <View style={{ gap: 10, padding: 14 }}>
     <Field theme={theme} label="名称" value={label} onChange={setLabel} disabled={busy} />
-    <Field theme={theme} label="CPA 管理地址" value={url} onChange={setUrl} disabled={busy} placeholder="https://cpa.example.com" />
-    <Field theme={theme} label="管理密钥" value={key} onChange={setKey} disabled={busy} secret
-      placeholder={instance?.hasSecret ? "留空保留当前密钥" : "输入 CPA 管理密钥"} />
+    <Field theme={theme} label="Keeper 地址" value={url} onChange={setUrl} disabled={busy} placeholder="https://keeper.example.com" />
+    <Field theme={theme} label="Keeper 登录密码（可选）" value={password} onChange={setPassword} disabled={busy} secret
+      placeholder={instance?.hasPassword && instance.baseUrl === url.trim() ? "留空保留已存密码" : "免登录实例可留空"} />
     {instance && instance.baseUrl !== url.trim() && <Text style={{ color: theme.colors.foregroundMuted }}>
-      更换主机时，请输入新主机的管理密钥。
+      更换地址或路径时，如需登录，请重新输入该实例的密码。
     </Text>}
     <View style={actionRow}>
       <Button label="保存" theme={theme} disabled={busy || incomplete} onPress={() => void run(async () => {
@@ -50,16 +50,16 @@ function InstanceEditor({ instance, theme, busy, run, accept, notify, close }: {
       <Button label="取消" theme={theme} disabled={busy} onPress={close} />
     </View>
     {instance && <View style={actionRow}>
-      {instance.hasSecret && <Button label="清除已存密钥" theme={theme} disabled={busy} onPress={() => setConfirm("clear")} />}
+      {instance.hasPassword && <Button label="清除已存密码" theme={theme} disabled={busy} onPress={() => setConfirm("clear")} />}
       <Button label="移除实例" danger theme={theme} disabled={busy} onPress={() => setConfirm("remove")} />
     </View>}
     {instance && confirm && <View style={{ gap: 8 }}>
       <Text style={{ color: theme.colors.foreground }}>{confirm === "remove"
-        ? `从此插件移除「${instance.label}」及其密钥？` : `清除「${instance.label}」保存的密钥？`}</Text>
+        ? `从此插件移除「${instance.label}」及其密码？` : `清除「${instance.label}」保存的密码？`}</Text>
       <View style={actionRow}>
         <Button label="确认" danger theme={theme} disabled={busy} onPress={() => void run(async () => {
           const value = confirm === "remove" ? await remove({ id: instance.id }) : await clear({ id: instance.id });
-          accept(value); close(); notify({ text: confirm === "remove" ? "实例已移除" : "密钥已清除" });
+          accept(value); close(); notify({ text: confirm === "remove" ? "实例已移除" : "密码已清除" });
         })} />
         <Button label="返回" theme={theme} disabled={busy} onPress={() => setConfirm(null)} />
       </View>
@@ -126,12 +126,12 @@ function HostSettings({ theme, host }: PluginSurfaceProps) {
     {result.isError && <Button label="重试" theme={theme} onPress={() => void result.refetch()} />}
   </View>;
   return <View style={{ gap: 18 }}>
-    <SettingsSection title="CPA 实例" trailing={<Button label="添加实例" theme={theme}
+    <SettingsSection title="CPA Usage Keeper 实例" trailing={<Button label="添加实例" theme={theme}
       disabled={busy || editing !== null} onPress={() => edit("new")} />}>
       <SettingsCard>
-        {!settings.instances.length && !editing && <SettingsRow label="暂无 CPA 实例" hint="添加实例后，插件将发现其中的 Codex 账号。" />}
+        {!settings.instances.length && !editing && <SettingsRow label="暂无 Keeper 实例" hint="添加实例后可读取其中的 Codex 账号和缓存额度。" />}
         {settings.instances.map(instance => <SettingsRow key={instance.id} label={instance.label}
-          hint={`${instance.baseUrl} · ${instance.hasSecret ? "已设置密钥" : "未设置密钥"}`}>
+          hint={`${instance.baseUrl} · ${instance.hasPassword ? "已存登录密码" : "未存登录密码"}`}>
           <Button label="编辑" theme={theme} disabled={busy || editing !== null} onPress={() => edit(instance)} />
         </SettingsRow>)}
         {editing && <InstanceEditor key={editing === "new" ? "new" : editing.id} instance={editing === "new" ? null : editing}

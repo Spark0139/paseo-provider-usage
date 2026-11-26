@@ -3,17 +3,12 @@
 | Project and revision | Original files | Adapted here |
 | --- | --- | --- |
 | [Paseo Usage Monitor](https://github.com/ABorakati/paseo-usage-monitor/tree/94da787423f941f9ea67dad684d3a5760011d801) | `client/meter.client.tsx`, `client/settings.client.tsx`, `index.client.tsx`, `server/config-store.server.ts` | Meter and form controls in `client/controls.tsx`, sidebar registration in `index.client.tsx`, owner-only atomic persistence in `server/storage/store.ts` |
-| [proxy-usage](https://github.com/RakshithBhat03/proxy-usage/tree/7d3a027c610203365d7fac712194ddf106e8c2b1) | `src/lib/quota/providers/codex.ts` | Codex upstream request headers in `server/sources/cpa.ts` |
 
-Both upstream projects grant the following MIT license.
+Paseo Usage Monitor grants the following MIT license.
 
 **Paseo Usage Monitor**
 
 Copyright (c) 2026 Aditya Borakati
-
-**proxy-usage**
-
-Copyright (c) 2026 Rakshith Bhat
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -9,8 +9,10 @@ node scripts/mock-daemon.mjs --ui
 
 The first command starts a temporary loopback daemon, installs the production entry with empty settings and then loads a separate demo installation. It checks the settings actions, quota data, native Usage reports and plugin reload. The second command also serves the Paseo web client. Open the printed local address and select **Provider Usage** in the sidebar. On first launch you can skip Paseo onboarding.
 
-Expand **Personal CPA** to see two enabled accounts out of three. The enabled Plus account has an exhausted five-hour window. **Second CPA** shows a synthetic upstream rejection. Claude shows 77% and 39% remaining. Antigravity shows illustrative native data.
+Expand **Personal Keeper** to see two enabled accounts out of three. The enabled Plus account has an exhausted five-hour window. **Second Keeper** shows a cached collection failure. Claude shows 77% and 39% remaining. Antigravity shows illustrative native data.
 
-Open **设置** in the usage screen to edit a demo instance. **测试连接** on Personal CPA reports three discovered Codex accounts. For this demo, the URLs are `https://personal.cpa.invalid` and `https://second.cpa.invalid`. The test key is `synthetic-demo-key`. All CPA requests use local fixture responses.
+Click **重新读取** to read the cached values. Click **更新 Keeper 额度** on Personal Keeper to submit two enabled accounts in one batch. The mock Keeper accepts one task and reports one already pending. The fixed observation timestamps and quotas stay available for repeatable checks.
+
+Open **设置** to edit a demo instance. **测试连接** on Personal Keeper reports three discovered Codex accounts. Use `https://personal.keeper.invalid` with the demo password `synthetic-demo-password`, or `https://second.keeper.invalid` with a blank password. Both instances use local fixtures.
 
 The demo creates a fresh daemon home, provider home and settings directory for each run. Press Ctrl+C in the terminal to close the UI demo and remove its temporary state. When a check fails, the command prints the path of its diagnostic log.

@@ -1,6 +1,6 @@
 {
   "id": "paseo-provider-usage",
   "name": "Provider Usage",
-  "description": "Account quota windows for CPA, Claude Code and Antigravity.",
+  "description": "Account quota windows for CPA Usage Keeper, Claude Code and Antigravity.",
   "requirements": { "paseo": ">=0.17.4" }
 }
