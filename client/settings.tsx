@@ -1,6 +1,6 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { type PluginSurfaceProps, useRpc } from "@getpaseo/plugin/client";
-import { ExternalLink, SettingsCard, SettingsRow, SettingsSection, SettingsSelect, SettingsSwitch } from "@getpaseo/plugin/client/ui";
+import { SettingsCard, SettingsRow, SettingsSection, SettingsSelect, SettingsSwitch } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
@@ -12,7 +12,7 @@ import { providers } from "../shared/providers";
 import type { CodexAccountRef } from "../shared/types";
 import { accountKey, codexAccounts, displayedCodexAccount } from "./codex-account";
 import { Button, Field } from "./controls";
-import { overviewKey, useAppActive, useOverview } from "./usage-data";
+import { claudeSnapshotKey, overviewKey, useAppActive, useOverview } from "./usage-data";
 import { Timestamp } from "./timestamp";
 
 type InstanceInfo = SettingsView["instances"][number];
@@ -100,10 +100,13 @@ function CodexAccountPicker({ hostId, preferred, busy, onChange }: {
 const claudeStages = {
   disabled: "已关闭",
   waitingSession: "等待会话使用所选配置启动",
-  sessionOpened: "会话已匹配，尚未收到启动器连接",
-  connected: "启动器已连接，等待额度事件",
+  sessionOpened: "会话已匹配，等待采集连接",
+  connected: "采集已接入，等待额度事件",
   observed: "已收到额度事件",
-  receiverError: "插件无法打开本地采集通道",
+  wrapConflict: "启动包装冲突，已跳过本次采集",
+  wrapUnavailable: "当前 daemon 不支持 Claude 额度采集",
+  legacyLauncher: "发现旧采集前缀，已跳过本次采集",
+  receiverError: "无法准备本地采集器",
 } as const;
 
 function ClaudeOptions({ settings, hostId, theme, busy, run, accept }: {
@@ -132,14 +135,13 @@ function ClaudeOptions({ settings, hostId, theme, busy, run, accept }: {
   options.push({ label: "手动输入配置 ID…", value: "@manual" });
   const stage = !enabled ? "disabled" : result?.stage;
   const title = stage ? claudeStages[stage] : diagnostics.isError ? "暂时无法读取接入状态" : "正在检查接入状态…";
-  const setup = stage === "waitingSession" || stage === "sessionOpened";
-  const launchHint = result?.launcher === "listed" ? "启动命令已包含采集启动器。"
-    : result?.launcher === "unlisted" ? "当前启动命令中未列出 claude-launch.cjs。若通过自己的脚本启动，请确认脚本已调用它。"
-    : "请确认此启动配置会通过 claude-launch.cjs 运行现有的 Claude 命令。";
-  const next = stage === "waitingSession" ? "应用配置后，等当前回合结束，在原 Chat 的标签页菜单选择「重新加载 Agent」，即可保留历史。也可以用此配置新建 Chat。随后正常发一条消息。"
-    : stage === "sessionOpened" ? "应用启动命令后，重新打开使用此配置的会话。"
-    : stage === "connected" ? "在这个会话正常使用 Claude；它上报额度后会在这里显示。"
-    : stage === "receiverError" ? "检查插件数据目录的写入权限，重新加载插件后再打开会话。" : null;
+  const next = stage === "waitingSession"
+    ? "等当前回合结束，在原 Chat 的标签页菜单选择「重新加载 Agent」一次，或用此配置新建 Chat。随后正常发送消息。"
+    : stage === "wrapUnavailable" ? "把运行此会话的 daemon 更新到 Paseo 0.17.5 或更高版本。"
+    : stage === "wrapConflict" ? "此会话已有其他插件的启动包装。若要继续沿用该包装，可以关闭额度采集。"
+    : stage === "legacyLauncher" ? "还原 Provider 原命令后，重新加载 Agent 或新建 Chat。"
+    : stage === "receiverError" ? "检查 daemon 能否找到 Node.js、插件数据目录是否可写，或查看插件日志。"
+    : null;
   const observed = result?.observedAt ?? settings.claudeObservedAt;
   const c = theme.colors;
   return <SettingsSection title={providers.claude.label}>
@@ -165,11 +167,7 @@ function ClaudeOptions({ settings, hostId, theme, busy, run, accept }: {
           onPress={() => void diagnostics.refetch()} />}
       </SettingsRow>
       {enabled && (next || observed) && <View style={{ gap: 7, paddingHorizontal: 14, paddingBottom: 12 }}>
-        {setup && <Text style={{ color: c.foregroundMuted, fontSize: 13 }}>{launchHint}</Text>}
         {next && <Text style={{ color: c.foreground, fontSize: 13 }}>{next}</Text>}
-        {setup && result?.launcher !== "listed" && <ExternalLink href="https://github.com/Spark0139/paseo-provider-usage/blob/main/docs/claude-collection.md">
-          <Text style={{ color: c.accent, fontSize: 13 }}>查看启动器配置示例</Text>
-        </ExternalLink>}
         {observed && <Timestamp iso={observed} now={Date.now()} label={stage === "observed" ? "最近采集" : "上次记录"} theme={theme} />}
       </View>}
     </SettingsCard>
@@ -193,6 +191,9 @@ function HostSettings({ theme, host, onSaved }: SettingsProps) {
   function accept(value: SettingsView) {
     onSaved(value);
     cache.setQueryData(queryKey, value);
+    if (value.claude.enabled !== settings?.claude.enabled || value.claude.providerId !== settings?.claude.providerId) {
+      void cache.resetQueries({ queryKey: claudeSnapshotKey(host.id) });
+    }
     void cache.invalidateQueries({ queryKey: overviewKey(host.id) });
   }
   async function run(action: () => Promise<void>) {

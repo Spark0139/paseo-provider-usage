@@ -1,33 +1,13 @@
 # 接入 Claude Code 或 ReClaude 额度
 
-在 **Provider Usage → 设置 → Claude** 选择运行 Claude Code 的 Paseo 启动配置，并打开 **采集额度**。在目标 daemon 主机上执行 `paseo provider ls`，第一列 `PROVIDER` 就是 ID。比如，`agents.providers.claude` 的命令可以是 `reclaude`，对应的 ID 仍然是 `claude`。插件按一个启动配置记录额度。
+采集需要运行会话的 Paseo daemon 为 0.17.5 或更新版本。使用 Paseo Desktop 0.17.4 连接远端时，可以更新远端 daemon 后启用采集。
 
-如果你平时在 **Terminal** 中点击名为 **Claude Code** 的快捷方式，它会在终端运行交互式 CC。额度事件来自 Paseo 的 Agent SDK 会话。请在下面配置好 **Agent Provider**，然后从 **Chat** 打开它。
+1. 在 **Provider Usage → 设置 → Claude** 选择平时用于聊天的 Claude 启动配置，打开 **采集额度**。插件会在该配置启动会话时接入。
+2. 等当前回合结束，在原 Chat 的标签页菜单选择 **重新加载 Agent** 一次，保留聊天历史。也可以用所选配置新建 Chat。切换配置、重新开启采集或重新加载插件后，重复此步骤。
+3. 在 Chat 中正常发消息。读数在 Claude 发出额度事件后更新。打开 **检查接入** 可查看会话、采集连接和最近观测时间。
 
-在运行会话的 daemon 主机上，用 `paseo plugin ls paseo-provider-usage` 查看插件安装目录。用 `command -v node` 和 `command -v reclaude` 查找可执行文件。编辑所选 Provider 的启动命令，在原命令前加上 **Node.js 22.14+ 的绝对路径**和**插件目录下的 `server/sources/claude-launch.cjs` 的绝对路径**。下面以 ID 为 `claude`、命令为 `reclaude` 为例。请替换示例中的三处路径，保留原有参数、环境和其他配置。
+如果你之前在 Provider 命令前手动加过 Node 路径和 `claude-launch.cjs`，请先移除这两项，保留原来的 Claude Code 或 ReClaude 命令、参数和环境。自己的启动脚本里有旧采集前缀时，也要一并移除。还原一次后，按上面的步骤接入。
 
-```json
-{
-  "agents": {
-    "providers": {
-      "claude": {
-        "command": [
-          "/absolute/path/to/node",
-          "/absolute/path/to/paseo-provider-usage/server/sources/claude-launch.cjs",
-          "/absolute/path/to/reclaude"
-        ]
-      }
-    }
-  }
-}
-```
+同一会话只能使用一个启动包装。若其他插件已提供包装，Provider Usage 会跳过采集。如果其他插件随后也要求包装，Paseo 会拒绝这次打开。遇到冲突，可以关闭 Claude 额度采集，保留原有沙箱或其他启动包装，再重新加载 Agent 或新建 Chat。
 
-应用 Provider 配置后，等当前回合结束，在使用该 Provider 的原 Chat 标签页菜单选择 **重新加载 Agent**。这会保留聊天历史，并用新配置重启会话。也可以用该 Provider 新建 Chat。使用 CLI 时，运行 `paseo agent reload <Agent ID>`，将占位符替换为 `paseo ls` 中该 Chat 的 Agent ID。
-
-在 Chat 中正常发送消息。Claude Code 的 SDK 发出额度事件后，插件会显示读数及观测时间，可能需要多个回合。切换配置、重新开启采集或重新加载插件后，也需要重新加载对应的 Agent 或新建 Chat。
-
-回到 **设置 → Claude → 检查接入** 查看进度。如果显示「会话已匹配，尚未收到启动器连接」，请核对所选 Provider 的启动命令和脚本路径。如果显示「启动器已连接，等待额度事件」，接入已生效，在这个 Chat 继续使用即可。
-
-通过 Git 仓库地址安装时，Paseo 会为更新后的版本分配新的源码目录。更新插件后用 `paseo plugin ls paseo-provider-usage` 核对 `DIRECTORY`，将 Provider 中的采集脚本路径指向当前版本。
-
-采集器从该进程的 SDK 输出中提取五小时、每周和 Fable 周额度，通过私有本地套接字交给 daemon。每个窗口在 SDK 上报后显示。卸载时移除启动命令最前面加上的两项即可恢复原命令。
+如果显示「无法准备本地采集器」，请检查插件数据目录是否可写。使用 Desktop 自带的 daemon 时，还需确保它能在 PATH 中找到 Node.js 22.14 或更新版本。采集器暂不可用时，仍可正常聊天。

@@ -2,13 +2,14 @@ import { usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { AppState } from "react-native";
-import { keeperRefreshStatusRpc, overviewRpc, refreshKeeperRpc, type KeeperRefreshStatus } from "../shared/contracts";
+import { claudeSnapshotRpc, keeperRefreshStatusRpc, overviewRpc, refreshKeeperRpc, type KeeperRefreshStatus } from "../shared/contracts";
 import { antigravitySnapshot } from "../shared/native-usage";
 import type { ProviderKind } from "../shared/providers";
 
+export const claudeSnapshotKey = (host: string) => ["provider-usage", host, "claude-snapshot"] as const;
 export const overviewKey = (host: string) => ["provider-usage", host, "overview"] as const;
 const onDemand = { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false } as const;
-type Surface = "dashboard" | "rail" | "codex-rail" | "settings" | ProviderKind;
+type Surface = "dashboard" | "codex-rail" | "settings" | ProviderKind;
 
 function subscribeToAppState(notify: () => void) {
   const subscription = AppState.addEventListener("change", notify);
@@ -25,17 +26,27 @@ export function useOverview(host: string, surface: Surface, visible = true) {
   const read = useRpc(overviewRpc);
   const overview = useQuery({
     queryKey: overviewKey(host), queryFn: () => read({}), ...onDemand,
-    enabled: active && visible, staleTime: 15_000, refetchOnMount: surface !== "rail",
+    enabled: active && visible, staleTime: 15_000, refetchOnMount: true,
     refetchInterval: active && visible && (surface === "dashboard" || surface === "cpa" || surface === "codex-rail") ? 60_000 : false,
     refetchIntervalInBackground: false,
   });
   return { active, read, overview };
 }
 
-export function useUsage(host: string, surface: "dashboard" | ProviderKind) {
+export function useClaudeSnapshot(host: string, enabled: boolean) {
+  const read = useRpc(claudeSnapshotRpc);
+  return useQuery({
+    queryKey: claudeSnapshotKey(host), queryFn: () => read({}), ...onDemand,
+    enabled, staleTime: 10_000, refetchInterval: enabled ? 10_000 : false, refetchIntervalInBackground: false,
+  });
+}
+
+export function useUsage(host: string, surface: "dashboard" | ProviderKind, visible = true) {
   const { active, read, overview } = useOverview(host, surface);
   const paseo = usePaseo();
   const cache = useQueryClient();
+  const wantsClaude = surface === "claude";
+  const claude = useClaudeSnapshot(host, active && visible && wantsClaude);
   const view = overview.data;
   const wantsNative = surface === "dashboard" || surface === "native";
   const nativeEnabled = active && !!view && !view.mock && view.display.showNativeProviders && wantsNative;
@@ -49,6 +60,8 @@ export function useUsage(host: string, surface: "dashboard" | ProviderKind) {
       if (surface === "dashboard") {
         await cache.cancelQueries({ queryKey: overviewKey(host) });
         cache.setQueryData(overviewKey(host), await read({ refresh: true }));
+      } else if (wantsClaude) {
+        await Promise.all([claude.refetch(), !view && overview.refetch()]);
       } else {
         await overview.refetch();
       }
@@ -63,9 +76,11 @@ export function useUsage(host: string, surface: "dashboard" | ProviderKind) {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, [active, surface]);
-  const sources = (view?.sources ?? []).filter(source => source.kind !== "native" || view?.display.showNativeProviders);
+  const sources = wantsClaude ? (claude.data ? [claude.data] : [])
+    : (view?.sources ?? []).filter(source => source.kind !== "native" || view?.display.showNativeProviders);
   if (view?.display.showNativeProviders && !view.mock && native.data) sources.push(native.data);
-  return { overview, view, native, nativeEnabled, sources, refresh: () => reload.mutate(), refreshError: reload.isError, busy: reload.isPending || overview.isFetching || (nativeEnabled && native.isFetching), now };
+  return { overview, view, claude, native, nativeEnabled, sources, refresh: () => reload.mutate(),
+    refreshError: reload.isError, busy: reload.isPending || overview.isFetching || (wantsClaude && claude.isFetching) || (nativeEnabled && native.isFetching), now };
 }
 
 export function useKeeperUpdate(host: string, id: string, visible: boolean) {

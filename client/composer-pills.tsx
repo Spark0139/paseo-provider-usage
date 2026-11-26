@@ -8,7 +8,7 @@ import type { CodexAccountRef, SourceSnapshot } from "../shared/types";
 import { codexAccounts, codexPeriod, displayedCodexAccount } from "./codex-account";
 import { productIcons } from "./product-icons";
 import { ProductCard } from "./product-card";
-import { useOverview, useUsage } from "./usage-data";
+import { useClaudeSnapshot, useOverview, useUsage } from "./usage-data";
 import { remaining } from "./window-row";
 import { createPillRefs, createSheetRef, usePillRef, type BindPillView } from "./web";
 
@@ -41,10 +41,14 @@ function PillMark({ kind, publish, host, theme, size, bindAnchor }: PluginButton
   const anchorRef = usePillRef(bindAnchor);
   // Paseo can keep a second composer mounted under display:none.
   const [visible, setVisible] = useState(false);
-  const { overview } = useOverview(host.id, kind === "cpa" ? "codex-rail" : "rail", visible && kind !== "native");
+  const { active, overview } = useOverview(host.id, "codex-rail", visible && kind === "cpa");
+  const claude = useClaudeSnapshot(host.id, active && visible && kind === "claude");
   const view = overview.data;
-  const { label, title, used } = pillReading(kind, view?.sources ?? [], view?.codexAccount ?? null);
-  useEffect(() => { if (view) publish(label, title); }, [view, label, title, publish]);
+  const sources = kind === "claude" ? (claude.data ? [claude.data] : []) : view?.sources ?? [];
+  const { label, title, used } = pillReading(kind, sources, view?.codexAccount ?? null);
+  const caption = kind === "claude" && claude.isError ? "Claude · 读取额度失败" : title;
+  const canPublish = visible && (kind === "claude" || !!view);
+  useEffect(() => { if (canPublish) publish(label, caption); }, [canPublish, label, caption, publish]);
   const c = theme.colors;
   const hasBar = used !== undefined;
   return <View ref={anchorRef} testID={`quota-pill-${providers[kind].id}`} onLayout={event => {
@@ -65,13 +69,18 @@ function QuotaPopover({ kind, openOverview, host, theme, close, bindContent }: P
   bindContent?: BindPillView; kind: ProviderKind; openOverview(): void;
 }) {
   const contentRef = usePillRef(bindContent);
-  const { view, sources, overview, native, nativeEnabled, refresh, busy, now, refreshError } = useUsage(host.id, kind);
+  const [visible, setVisible] = useState(false);
+  const { view, sources, overview, claude, native, nativeEnabled, refresh, busy, now, refreshError } = useUsage(host.id, kind, visible);
   const group = sources.filter(source => source.kind === kind);
   const c = theme.colors;
-  const failed = overview.isError || refreshError || (kind === "native" && nativeEnabled && native.isError);
-  const loading = !view || (kind === "native" && nativeEnabled && native.isLoading);
+  const failed = overview.isError || refreshError || (kind === "claude" && claude.isError)
+    || (kind === "native" && nativeEnabled && native.isError);
+  const loading = !view || (kind === "claude" && claude.isPending) || (kind === "native" && nativeEnabled && native.isLoading);
   const message = failed ? "读取额度失败" : loading ? "正在读取…" : !group.length ? "暂无额度报告" : undefined;
-  return <View ref={contentRef} testID={`quota-popover-${providers[kind].id}`} style={{ gap: 2 }}>
+  return <View ref={contentRef} testID={`quota-popover-${providers[kind].id}`} style={{ gap: 2 }} onLayout={kind === "claude" ? event => {
+    const { width, height } = event.nativeEvent.layout;
+    setVisible(width > 0 && height > 0);
+  } : undefined}>
     {view ? <ProductCard kind={kind} sources={group} hostId={host.id} width="100%" display={view.display}
       theme={theme} compact now={now} floating message={message} failed={failed} /> :
       <Text style={{ color: failed ? c.statusWarning : c.foregroundMuted }}>{message}</Text>}
