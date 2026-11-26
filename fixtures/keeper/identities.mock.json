@@ -1,0 +1,84 @@
+{
+  "identities": [
+    {
+      "id": "101",
+      "identity": "demo-pro",
+      "name": "Demo Pro",
+      "displayName": "Demo Pro",
+      "auth_type": 1,
+      "auth_type_name": "oauth",
+      "type": "codex",
+      "provider": "codex",
+      "disabled": false,
+      "is_deleted": false,
+      "subscription": {
+        "provider": "codex",
+        "plan": "Pro"
+      }
+    },
+    {
+      "id": "102",
+      "identity": "demo-plus",
+      "name": "Demo Plus",
+      "displayName": "Demo Plus",
+      "auth_type": 1,
+      "auth_type_name": "oauth",
+      "type": "codex",
+      "provider": "codex",
+      "disabled": false,
+      "is_deleted": false,
+      "subscription": {
+        "provider": "codex",
+        "plan": "Plus"
+      }
+    },
+    {
+      "id": "103",
+      "identity": "demo-disabled",
+      "name": "Disabled Codex",
+      "displayName": "Disabled Codex",
+      "auth_type": 1,
+      "auth_type_name": "oauth",
+      "type": "codex",
+      "provider": "codex",
+      "disabled": true,
+      "is_deleted": false
+    },
+    {
+      "id": "104",
+      "identity": "demo-other",
+      "name": "Other provider",
+      "displayName": "Other provider",
+      "auth_type": 1,
+      "auth_type_name": "oauth",
+      "type": "claude",
+      "provider": "claude",
+      "disabled": false,
+      "is_deleted": false
+    },
+    {
+      "id": "105",
+      "identity": "demo-api",
+      "name": "Synthetic API key configuration",
+      "displayName": "Synthetic API key configuration",
+      "auth_type": 2,
+      "auth_type_name": "api_key",
+      "type": "codex",
+      "provider": "codex",
+      "disabled": false,
+      "is_deleted": false
+    },
+    {
+      "id": "106",
+      "identity": "demo-deleted",
+      "name": "Removed Codex",
+      "displayName": "Removed Codex",
+      "auth_type": 1,
+      "auth_type_name": "oauth",
+      "type": "codex",
+      "provider": "codex",
+      "disabled": false,
+      "is_deleted": true
+    }
+  ]
+}

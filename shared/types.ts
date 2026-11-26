@@ -27,7 +27,7 @@ export const instanceSchema = z.object({
 export type QuotaWindow = z.infer<typeof windowSchema>;
 export type Account = z.infer<typeof accountSchema>;
 export type SourceSnapshot = z.infer<typeof snapshotSchema>;
-export type CpaInstance = z.infer<typeof instanceSchema>;
+export type KeeperInstance = z.infer<typeof instanceSchema>;
 export type ClaudeSettings = z.infer<typeof claudeSchema>;
 export type Display = z.infer<typeof displaySchema>;
 

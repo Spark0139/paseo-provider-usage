@@ -1,0 +1,16 @@
+{
+  "tasks": [
+    {
+      "authIndex": "demo-pro"
+    }
+  ],
+  "rejected": [
+    {
+      "authIndex": "demo-plus",
+      "error": "duplicate"
+    }
+  ],
+  "accepted": 1,
+  "skipped": 1,
+  "limit": 2
+}

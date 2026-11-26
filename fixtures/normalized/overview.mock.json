@@ -4,7 +4,7 @@
     {
       "sourceId": "cpa-personal",
       "kind": "cpa",
-      "label": "Personal CPA",
+      "label": "Personal Keeper",
       "accounts": [
         {
           "id": "mock-codex-01",
@@ -69,21 +69,20 @@
     {
       "sourceId": "cpa-second",
       "kind": "cpa",
-      "label": "Second CPA",
+      "label": "Second Keeper",
       "accounts": [
         {
           "id": "mock-codex-04",
           "label": "Account 04",
           "enabled": true,
-          "state": "unknown",
+          "state": "unavailable",
           "windows": [],
           "observedAt": null,
-          "error": "Synthetic upstream rejection (401)"
+          "error": "Keeper quota observation failed (HTTP 401)."
         }
       ],
       "lastAttemptAt": "2026-11-26T05:32:00Z",
-      "lastSuccessAt": null,
-      "error": "Synthetic upstream rejection"
+      "lastSuccessAt": null
     },
     {
       "sourceId": "claude-reclaude",

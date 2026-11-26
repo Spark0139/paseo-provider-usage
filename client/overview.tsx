@@ -1,9 +1,9 @@
 import type { PluginTheme } from "@getpaseo/plugin";
 import { usePaseo, useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { overviewRpc } from "../shared/contracts";
+import { overviewRpc, refreshKeeperRpc } from "../shared/contracts";
 import { enabledCount, type Account, type Display, type SourceSnapshot } from "../shared/types";
 import { Button, RemainingBar } from "./controls";
 import { antigravitySnapshot, countdown, localDate } from "./usage";
@@ -51,11 +51,26 @@ function AccountCard({ account, expandedInitially, kind, theme, display, now }: 
   </View>;
 }
 
+function KeeperRefresh({ id, theme }: { id: string; theme: PluginTheme }) {
+  const request = useRpc(refreshKeeperRpc);
+  const update = useMutation({ mutationFn: () => request({ id }), retry: false });
+  return <View style={{ alignItems: "flex-start", gap: 6, paddingVertical: 6 }}>
+    <Button label={update.isPending ? "提交中…" : "更新 Keeper 额度"} disabled={update.isPending}
+      onPress={() => update.mutate()} theme={theme} />
+    {update.data && <Text accessibilityLiveRegion="polite" style={{ color: theme.colors.foregroundMuted }}>
+      {`已提交 ${update.data.queued} · 已在队列 ${update.data.pending} · 失败 ${update.data.failed}。稍后点击「重新读取」查看额度。`}
+    </Text>}
+    {update.error && <Text accessibilityLiveRegion="polite" style={{ color: theme.colors.statusWarning }}>
+      {update.error.message}
+    </Text>}
+  </View>;
+}
+
 function SourceCard({ source, display, theme, now }: CardProps & { source: SourceSnapshot }) {
   const [open, setOpen] = useState(true);
   const c = theme.colors;
   const accounts = source.accounts.filter(account => display.showDisabledAccounts || account.enabled !== false);
-  const caption = source.kind === "cpa" ? `CPA · 启用 ${enabledCount(source.accounts)} / ${source.accounts.length}`
+  const caption = source.kind === "cpa" ? `Keeper · 启用 ${enabledCount(source.accounts)} / ${source.accounts.length}`
     : source.kind === "native" ? "Paseo 原生" : "Claude SDK · 被动采集";
   return <View style={{ backgroundColor: c.surface1, borderWidth: 1, borderColor: c.border,
     borderRadius: 9, paddingHorizontal: 14, paddingVertical: 8 }}>
@@ -63,8 +78,9 @@ function SourceCard({ source, display, theme, now }: CardProps & { source: Sourc
       style={{ paddingVertical: 6, gap: 3 }}>
       <Text style={{ color: c.foreground, fontSize: 17, fontWeight: "600" }}>{open ? "▾" : "▸"} {source.label}</Text>
       <Text style={{ color: c.foregroundMuted, fontSize: 13 }}>{caption}</Text>
-      {source.lastSuccessAt && <Text style={{ color: c.foregroundMuted, fontSize: 12 }}>最近有效更新 {localDate(source.lastSuccessAt)}</Text>}
+      {source.lastSuccessAt && <Text style={{ color: c.foregroundMuted, fontSize: 12 }}>最近额度观测 {localDate(source.lastSuccessAt)}</Text>}
     </Pressable>
+    {open && source.kind === "cpa" && <KeeperRefresh id={source.sourceId} theme={theme} />}
     {source.error && <Text style={{ color: c.statusWarning, paddingVertical: 5 }}>{source.error}</Text>}
     {open && accounts.map(account => <AccountCard key={account.id} account={account} expandedInitially={accounts.length === 1}
       kind={source.kind} display={display} theme={theme} now={now} />)}
@@ -110,12 +126,12 @@ export function Overview({ theme, host, layout, openSettings }: PluginScreenProp
   return <ScrollView style={{ flex: 1, backgroundColor: c.surface0 }}
     contentContainerStyle={{ padding: layout.compact ? 12 : 22, gap: 12, width: "100%", maxWidth: 800, alignSelf: "center" }}>
     <View style={{ flexDirection: "row", gap: 8, alignSelf: "flex-end" }}>
-      <Button label={busy ? "读取中…" : "刷新"} onPress={() => void refresh()} disabled={busy} theme={theme} />
+      <Button label={busy ? "读取中…" : "重新读取"} onPress={() => void refresh()} disabled={busy} theme={theme} />
       <Button label="设置" onPress={openSettings} theme={theme} />
     </View>
     {overview.isError && <Text style={{ color: c.statusWarning }}>读取额度失败，请检查主机连接后刷新。</Text>}
     {view && sources.map(source => <SourceCard key={source.sourceId} source={source} display={view.display} theme={theme} now={now} />)}
-    {view && !sources.length && !nativeEnabled && <Text style={{ color: c.foregroundMuted }}>打开设置可添加 CPA 实例或启用 Claude 采集。</Text>}
+    {view && !sources.length && !nativeEnabled && <Text style={{ color: c.foregroundMuted }}>打开设置可添加 Keeper 实例或启用 Claude 采集。</Text>}
     {nativeEnabled && native.isLoading && <Text style={{ color: c.foregroundMuted }}>正在读取 Paseo 原生额度…</Text>}
     {nativeEnabled && native.isError && <Text style={{ color: c.statusWarning }}>无法读取 Paseo 原生额度报告。</Text>}
   </ScrollView>;

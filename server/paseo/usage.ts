@@ -2,12 +2,12 @@ import { z } from "zod";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { hashAccountKey, unavailable, windowFromUsedPct, type UsageReport } from "@getpaseo/plugin/server/usage";
 import type { Account, SourceSnapshot } from "../../shared/types";
-import { cpaIdentity, type UsageService } from "../usage/service";
+import type { UsageService } from "../usage/service";
 
 const locator = z.object({ source: z.string(), account: z.string(), binding: z.string() }).strict();
 
 export function reportFor(snapshot: SourceSnapshot, account: Account): UsageReport {
-  if (account.enabled === false) return unavailable({ kind: "no_quota", detail: "Account disabled in CPA." });
+  if (account.enabled === false) return unavailable({ kind: "no_quota", detail: "Account disabled in Keeper." });
   const error = snapshot.error ?? account.error;
   if (!account.observedAt) {
     return error ? { status: "error", error } : unavailable({ kind: "no_quota", detail: "Awaiting a quota reading." });
@@ -28,18 +28,19 @@ export function reportFor(snapshot: SourceSnapshot, account: Account): UsageRepo
 export function registerUsage(server: Pick<PluginServerContext, "registerUsageSource">, usage: UsageService) {
   for (const kind of ["cpa", "claude"] as const) {
     server.registerUsageSource({
-      id: kind === "cpa" ? "cpa-codex-quota" : "claude-passive-quota",
-      label: kind === "cpa" ? "CPA · Codex" : "Claude Code · SDK",
+      id: kind === "cpa" ? "keeper-codex-quota" : "claude-passive-quota",
+      label: kind === "cpa" ? "CPA Keeper · Codex" : "Claude Code · SDK",
       input: locator,
       async discover(scope) {
         if (scope.kind !== "global") return [];
+        const requested = usage.store.instances;
         const sources = kind === "cpa"
-          ? await usage.cpaSources()
+          ? await usage.keeperSources()
           : usage.store.claude.enabled ? [usage.claudeSnapshot()] : [];
         return sources.flatMap(source => {
-          const instance = usage.store.instances.find(item => item.id === source.sourceId);
-          if (kind === "cpa" && !instance) return [];
-          const binding = instance ? hashAccountKey(cpaIdentity(instance)) : usage.store.claude.providerId;
+          const instance = requested.find(item => item.id === source.sourceId);
+          if (kind === "cpa" && (!instance || !usage.isCurrent(instance))) return [];
+          const binding = instance ? instance.binding : usage.store.claude.providerId;
           return source.accounts.map(account => ({
             key: hashAccountKey(JSON.stringify([source.sourceId, account.id])),
             label: kind === "cpa" ? `${source.label} · ${account.label}` : account.label,
@@ -50,11 +51,14 @@ export function registerUsage(server: Pick<PluginServerContext, "registerUsageSo
       async fetch(input) {
         const { source, account, binding } = locator.parse(input);
         const instance = usage.store.instances.find(item => item.id === source);
-        if (kind === "cpa" && (!instance || hashAccountKey(cpaIdentity(instance)) !== binding)) {
+        if (kind === "cpa" && (!instance || instance.binding !== binding)) {
           return unavailable({ kind: "no_quota", detail: "Account configuration has changed." });
         }
+        if (kind === "claude" && binding !== usage.store.claude.providerId) {
+          return unavailable({ kind: "no_quota", detail: "Claude provider has changed." });
+        }
         const snapshot = kind === "cpa"
-          ? instance && await usage.cpaSnapshot(instance)
+          ? instance && await usage.keeperSnapshot(instance)
           : usage.store.claude.enabled && usage.claudeSnapshot();
         const entry = snapshot && snapshot.sourceId === source && snapshot.accounts.find(item => item.id === account);
         if (!snapshot || !entry || (instance && !usage.isCurrent(instance))) return unavailable({ kind: "no_quota", detail: "Account is no longer configured." });
