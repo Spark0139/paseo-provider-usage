@@ -33,7 +33,7 @@ const refreshStatus = z.object({
 });
 export type KeeperRefreshStatus = z.infer<typeof refreshStatus>;
 export const keeperRefreshStatusRpc = defineRpc({
-  name: "keeper.refreshStatus", input: z.object({ id: z.string() }), output: refreshStatus,
+  name: "keeper.refresh.status", input: z.object({ id: z.string() }), output: refreshStatus,
 });
 
 export const preferencesRpc = defineRpc({
