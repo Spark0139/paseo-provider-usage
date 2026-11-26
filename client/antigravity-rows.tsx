@@ -6,7 +6,7 @@ import type { QuotaWindow } from "../shared/types";
 import { productIcons } from "./product-icons";
 import { WindowRow, windowLabel, type RowProps } from "./window-row";
 
-export function AntigravityCatalog({ models, theme, title = "宿主模型目录" }: {
+export function AntigravityCatalog({ models, theme, title = "可用模型" }: {
   models: CatalogModel[]; theme: PluginTheme; title?: string;
 }) {
   if (!models.length) return null;

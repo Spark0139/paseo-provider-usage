@@ -31,7 +31,7 @@ function nativeAccount(report: ProviderUsage, id: string): Account {
     id, label: report.displayName, enabled: null,
     state: report.status === "available" ? "available" : "unavailable",
     planLabel: report.planLabel ?? undefined, observedAt: null,
-    error: report.status === "error" ? "读取 Antigravity 额度失败" : undefined,
+    error: report.status === "error" ? "读取额度失败" : undefined,
     windows,
   };
 }
