@@ -8,19 +8,19 @@ import { enabledCount, type SourceSnapshot } from "../shared/types";
 import { productIcons } from "./product-icons";
 import { ProductCard } from "./product-card";
 import { useUsage } from "./usage-data";
-import { remaining, windowLabel } from "./window-row";
+import { remaining } from "./window-row";
 
 const kinds = Object.keys(providers) as ProviderKind[];
 
 function pillReading(kind: ProviderKind, sources: SourceSnapshot[]) {
-  const accounts = sources.filter(source => source.kind === kind).flatMap(source => source.accounts);
-  const windows = accounts.flatMap(account => account.windows);
   const name = providers[kind].label;
-  if (kind === "cpa") return { label: accounts.length ? `${name} ${enabledCount(accounts)}/${accounts.length} 启用` : name };
-  if (kind === "native") return { label: windows.length ? `${name} ${windows.length} 个窗口` : name };
+  if (kind === "native") return { label: name };
+  const accounts = sources.filter(source => source.kind === kind).flatMap(source => source.accounts);
+  if (kind === "cpa") return { label: accounts.length ? `${name} ${enabledCount(accounts)}/${accounts.length}` : name };
+  const windows = accounts.flatMap(account => account.windows);
   const window = windows.find(w => w.id === "five_hour" && w.usedPercent !== null) ?? windows.find(w => w.usedPercent !== null);
-  if (!window || window.usedPercent === null) return { label: `${name} 待观测` };
-  return { label: `${name} ${windowLabel(window)} 剩余 ${remaining(window.usedPercent)}`, used: window.usedPercent };
+  if (!window || window.usedPercent === null) return { label: `${name} —` };
+  return { label: `${name} ${remaining(window.usedPercent)}`, used: window.usedPercent };
 }
 
 // Usage Monitor's rail mark sits in the host's icon slot with a 3px bar beneath it.
