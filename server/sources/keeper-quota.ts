@@ -60,8 +60,8 @@ function windowFor(row: Row, observedAt: string): QuotaWindow {
 }
 
 export function accountFromCache(identity: Identity, cache?: Cached): Account {
-  // Keeper's row id and credential index identify a record. The upstream name can change on relogin.
-  const binding = JSON.stringify([identity.id, identity.identity, identity.name]);
+  // Both the Keeper row and the credential index precede any display-name or alias edits.
+  const binding = JSON.stringify([identity.id, identity.identity]);
   const enabled = typeof identity.disabled === "boolean" ? !identity.disabled : null;
   const account: Account = {
     id: createHash("sha256").update(binding).digest("hex"),

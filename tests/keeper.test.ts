@@ -143,3 +143,18 @@ test("duration pins and relative resets follow the same Keeper window when the r
   const after = (await client.read())[0];
   assert.deepEqual(after.windows, [...before.windows].reverse());
 });
+
+test("renaming a Keeper credential preserves its native report locator", async () => {
+  const entry = structuredClone(identities.identities[0]);
+  const client = createKeeperClient(instance, "", { fetch: async url => Response.json(
+    url === prefix + "/usage/identities" ? { identities: [entry] } : cache,
+  ) });
+  const [before] = await client.read();
+  entry.name = "Updated credential name";
+  entry.displayName = "Updated alias";
+  const [after] = await client.read();
+  assert.equal(after.label, "Updated alias");
+  assert.equal(after.id, before.id);
+  entry.id = "999";
+  assert.notEqual((await client.read())[0].id, before.id);
+});
