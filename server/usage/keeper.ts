@@ -1,4 +1,6 @@
-import type { KeeperRefreshResult } from "../../shared/contracts";
+import { KeeperRefreshBatch } from "./keeper-refresh";
+import type { KeeperSubmission, TaskStatus } from "../sources/keeper";
+import type { KeeperRefreshResult, KeeperRefreshStatus } from "../../shared/contracts";
 import type { Account, KeeperInstance, SourceSnapshot } from "../../shared/types";
 import { emptySnapshot, type SnapshotCache } from "../storage/snapshots";
 import type { InstanceDraft, SettingsStore, StoredInstance } from "../storage/store";
@@ -7,7 +9,8 @@ import type { UsageSource, UsageTarget } from "./source";
 type KeeperClient = {
   test(): Promise<number>;
   read(): Promise<Account[]>;
-  requestRefresh(): Promise<KeeperRefreshResult>;
+  requestRefresh(): Promise<KeeperSubmission>;
+  taskStatus(index: string): Promise<TaskStatus>;
 };
 
 export type Connect = (instance: KeeperInstance, password: string, signal: AbortSignal) => KeeperClient;
@@ -16,6 +19,7 @@ type Session = {
   client: KeeperClient;
   reading?: Promise<SourceSnapshot>;
   refreshing?: Promise<KeeperRefreshResult>;
+  batch?: KeeperRefreshBatch;
 };
 
 export class KeeperUsage implements UsageSource {
@@ -68,7 +72,7 @@ export class KeeperUsage implements UsageSource {
     if (pending) return pending;
     const saved = this.cache.get(instance.id, instance.binding);
     const previous = { ...(saved ?? emptySnapshot(this.kind, instance.id)), instanceLabel: instance.label };
-    if (!reload && previous.lastAttemptAt && this.now().getTime() - Date.parse(previous.lastAttemptAt) < 300_000) {
+    if (!reload && previous.lastAttemptAt && this.now().getTime() - Date.parse(previous.lastAttemptAt) < 60_000) {
       return Promise.resolve(previous);
     }
     const session = this.sessionFor(instance);
@@ -97,11 +101,24 @@ export class KeeperUsage implements UsageSource {
     if (!instance) throw new Error("Keeper 实例已移除。");
     const session = this.sessionFor(instance);
     if (session.refreshing) return session.refreshing;
+    if (session.batch?.pending) return Promise.resolve(session.batch.receipt);
     session.refreshing = session.client.requestRefresh().then(result => {
       if (!this.isCurrent(instance) || session.abort.signal.aborted) throw new Error("Keeper 实例设置已变更。");
-      return result;
+      session.batch = new KeeperRefreshBatch(result, index => session.client.taskStatus(index), async () => {
+        // An earlier read may still be returning the pre-refresh cache.
+        await session.reading;
+        if (!this.isCurrent(instance) || session.abort.signal.aborted) throw new Error("Keeper 实例设置已变更。");
+        return (await this.snapshot(instance, true)).error;
+      });
+      return session.batch.receipt;
     }).finally(() => { session.refreshing = undefined; });
     return session.refreshing;
+  }
+
+  refreshStatus(id: string): KeeperRefreshStatus {
+    const instance = this.store.instances.find(item => item.id === id);
+    const batch = instance && this.sessions.get(instance.binding)?.batch;
+    return batch?.status() ?? { phase: "idle", completed: 0, failed: 0, remaining: 0 };
   }
 
   private isCurrent(instance: StoredInstance) {
@@ -116,7 +133,7 @@ export class KeeperUsage implements UsageSource {
       const oldAccounts = new Map(previous.accounts.map(account => [account.id, account]));
       const merged = accounts.map(account => {
         const old = oldAccounts.get(account.id);
-        return !account.observedAt && old && (account.error || account.enabled === false)
+        return !account.observedAt && old?.observedAt
           ? { ...account, windows: old.windows, observedAt: old.observedAt } : account;
       });
       const newest = accounts.flatMap(account => account.observedAt ? [account.observedAt] : []).sort().at(-1);

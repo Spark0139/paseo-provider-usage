@@ -27,6 +27,15 @@ export const refreshKeeperRpc = defineRpc({
   name: "keeper.refresh", input: z.object({ id: z.string() }),
   output: refreshResult,
 });
+const refreshStatus = z.object({
+  phase: z.enum(["idle", "pending", "completed", "unconfirmed"]),
+  completed: count, failed: count, remaining: count, error: z.string().optional(),
+});
+export type KeeperRefreshStatus = z.infer<typeof refreshStatus>;
+export const keeperRefreshStatusRpc = defineRpc({
+  name: "keeper.refreshStatus", input: z.object({ id: z.string() }), output: refreshStatus,
+});
+
 export const preferencesRpc = defineRpc({
   name: "config.preferences", input: z.object({ claude: claudeSchema.optional(), display: displaySchema.partial().optional() }),
   output: settingsSchema,

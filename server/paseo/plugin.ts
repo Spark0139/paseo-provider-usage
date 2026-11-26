@@ -1,6 +1,6 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import {
-  clearSecretRpc, deleteInstanceRpc, overviewRpc, preferencesRpc, refreshKeeperRpc, saveInstanceRpc, settingsRpc, testInstanceRpc,
+  clearSecretRpc, deleteInstanceRpc, keeperRefreshStatusRpc, overviewRpc, preferencesRpc, refreshKeeperRpc, saveInstanceRpc, settingsRpc, testInstanceRpc,
 } from "../../shared/contracts";
 import type { SourceSnapshot } from "../../shared/types";
 import { SettingsStore } from "../storage/store";
@@ -47,6 +47,7 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
     usage.prune();
     return settings();
   });
+  server.handle(keeperRefreshStatusRpc, ({ id }) => usage.keeper.refreshStatus(id));
   server.handle(refreshKeeperRpc, ({ id }) => usage.keeper.requestRefresh(id));
   server.handle(preferencesRpc, input => {
     const previous = store.claude;
