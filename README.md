@@ -1,6 +1,8 @@
 # Paseo Provider Usage
 
-在 Paseo 侧边栏打开 **Provider Usage**，即可查看 Codex、Claude 和 Antigravity 的剩余额度。每个窗口显示剩余百分比和设备当地的重置时间。悬停、键盘聚焦或轻点时间，可查看完整中文日期和时区。Codex 和 Claude 的读数也会出现在 Paseo 全局 Usage 中。
+在 Paseo 侧边栏打开 **Provider Usage**，即可查看 Codex、Claude 和 Antigravity 的剩余额度。卡片使用 Usage Monitor 的 Codex 横条布局，每个窗口显示剩余百分比和设备当地的重置时间。悬停、键盘聚焦或轻点时间，可查看完整中文日期和时区。Codex 和 Claude 的读数也会出现在 Paseo 全局 Usage 中。
+
+![Paseo 中的 Codex、Claude 和 Antigravity 额度卡片，使用演示数据](docs/images/usage-overview.png)
 
 ## 安装
 
@@ -20,7 +22,7 @@ paseo plugin ls paseo-provider-usage
 - **Codex**。在 **设置 → Codex → 添加 Keeper 实例** 填入名称和 Keeper 地址（如 `https://keeper.example.com/usage`）。开启登录的实例还需填写密码，密码保存在 daemon 上。点击 **测试连接** 后保存。账号优先显示 Keeper 中设置的别名，其次显示账号备注的首行。添加多个实例时可按实例查看启用数和额度。插件已验证 Keeper v2.1.2。[安装 CPA Usage Keeper](https://github.com/Willxup/cpa-usage-keeper/tree/v2.1.2)
 - **更新 Codex 额度**。打开页面或点击 **重新读取** 查看缓存。要获取新读数，点击目标实例的 **更新额度**。Keeper 会接收该实例已启用账号的批量任务，处理后重新读取即可。
 - **Claude**。在 daemon 上使用 Node.js 22.14 或更高版本，将采集启动器加到原有 Claude Code 或 ReClaude 命令前。在 **设置 → Claude** 编辑关联的 Provider ID，打开 **采集额度**。新会话收到额度事件后显示五小时、每周及该账号上报的 Fable 周额度。[启动命令示例](docs/claude-collection.md)
-- **Antigravity**。先在 Paseo 中配置 Antigravity Provider，再在插件设置中打开 **显示额度**。使用代理时，沿用现有包装命令和环境，保留 `acp` 与 `--disable-telemetry` 参数。每个有单独额度的模型显示自己的读数，共用额度的模型组显示一份剩余比例和重置时间。只在模型目录中出现的型号列在「未单列额度」。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
+- **Antigravity**。先在 Paseo 中配置 Antigravity Provider，再在插件设置中打开 **显示额度**。使用代理时，沿用现有包装命令和环境，保留 `acp` 与 `--disable-telemetry` 参数。卡片按 Paseo 返回的额度组显示各自的剩余比例与重置时间，例如 Gemini 的五小时和每周窗口。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
 
 ## 卸载
 

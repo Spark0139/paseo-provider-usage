@@ -43,7 +43,7 @@ export function UsageMeter({ percentUsed, percentFilled, pacePercent, theme, com
   const c = theme.colors;
   const tone = percentUsed > 90 ? c.statusDanger : percentUsed >= 70 ? c.statusWarning : c.accent;
   return <View accessibilityRole="progressbar" accessibilityLabel="剩余额度"
-    accessibilityValue={{ min: 0, max: 100, now: fill }}
+    aria-valuemin={0} aria-valuemax={100} aria-valuenow={fill}
     style={{ height, borderRadius, overflow: "hidden", backgroundColor: c.surface2 }}>
     <View style={{ height, borderRadius, width: `${fill}%`, backgroundColor: tone }} />
     {pacePercent !== null && <View style={{ position: "absolute", top: 0, bottom: 0, width: 2, marginLeft: -1,

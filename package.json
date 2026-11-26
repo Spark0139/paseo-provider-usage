@@ -15,6 +15,7 @@
     "shared/",
     "CHANGELOG.md",
     "docs/claude-collection.md",
+    "docs/images/usage-overview.png",
     "THIRD_PARTY_NOTICES.md"
   ],
   "scripts": {

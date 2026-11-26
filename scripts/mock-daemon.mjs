@@ -60,9 +60,11 @@ async function verify(client, demo, directory) {
   assert.deepEqual(claudeSource.accounts[0].windows.map(w => 100 - w.usedPercent), [77, 39, 63]);
   const nativeSource = overview.sources.find(s => s.kind === "native");
   assert.equal(nativeSource.label, "Antigravity");
-  assert.ok(nativeSource.models.some(model => model.label.includes("Argon")));
   const native = nativeSource.accounts[0];
-  assert.deepEqual(native.windows.map(w => w.usedPercent), [25, 50, 0, 100, 75, null]);
+  assert.deepEqual(native.windows.map(w => [w.groupLabel, w.label, w.usedPercent]), [
+    ["Gemini", "5 小时", 25], ["Gemini", "7 天", 50],
+    ["Claude / GPT", "5 小时", 0], ["Claude / GPT", "7 天", 75],
+  ]);
   assert.equal(new Set(native.windows.map(w => w.id)).size, native.windows.length);
 
   await rpc("usage.overview", { refresh: true });
