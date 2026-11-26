@@ -18,7 +18,7 @@ paseo plugin install github:Spark0139/paseo-provider-usage
 
 - **Codex**。在 **设置 → Codex → 添加 Keeper 实例** 填入名称和 Keeper 地址（如 `https://keeper.example.com/usage`）。开启登录的实例还需填写密码，密码保存在 daemon 上。点击 **测试连接** 后保存。账号优先显示 Keeper 中设置的别名，其次显示账号备注的首行。添加多个实例时可按实例查看启用数和额度。插件已验证 Keeper v2.1.2。[安装 CPA Usage Keeper](https://github.com/Willxup/cpa-usage-keeper/tree/v2.1.2)
 - **更新 Codex 额度**。活跃账号的普通请求带回额度时，Keeper 会更新缓存。打开额度总览或 Codex 浮卡时，插件每分钟同步最新读数。要立即查询，点击该实例的 **更新额度** 一次，完成后会自动显示结果。需要定期主动查询时，可在 Keeper 的 **巡检 → 齿轮 → 定时刷新** 设置周期。
-- **Claude**。在 **设置 → Claude** 选择平时用于聊天的启动配置，打开 **采集额度**。在 daemon 上把 Node.js 22.14+ 和采集脚本加到原有 Claude Code 或 ReClaude 命令前。应用后新开一次 Chat 并正常发消息，**检查接入** 会显示启动器和额度事件的状态。[ReClaude 配置示例](docs/claude-collection.md)
+- **Claude**。在 **设置 → Claude** 选择平时用于聊天的启动配置，打开 **采集额度**。在 daemon 上把 Node.js 22.14+ 和采集脚本加到原有 Claude Code 或 ReClaude 命令前。应用配置后，等当前回合结束，在原 Chat 的标签页菜单选择 **重新加载 Agent** 即可保留历史，也可以用此配置新建 Chat。正常发消息后，在 **检查接入** 查看启动器和额度事件的状态。[ReClaude 配置示例](docs/claude-collection.md)
 - **Antigravity**。先在 Paseo 中配置 Antigravity Provider，再在插件设置中打开 **显示额度**。使用代理时，沿用现有包装命令和环境，保留 `acp` 与 `--disable-telemetry` 参数。卡片按 Paseo 返回的额度组显示各自的剩余比例与重置时间，例如 Gemini 的五小时和每周窗口。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
 
 ## 卸载
