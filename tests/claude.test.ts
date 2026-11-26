@@ -135,7 +135,7 @@ test("interactive provider launch forwards protocol bytes and isolates private o
   assert.equal(await hook({request}), undefined);
   settings.enabled = true;
   assert.equal(collector.stage(), "waitingSession");
-  const renewed = (await hook({request}))!.env.PASEO_PROVIDER_USAGE_SOCKET;
+  const renewed = (await hook({request: {...request, reason: "refresh"}}))!.env.PASEO_PROVIDER_USAGE_SOCKET;
   assert.notEqual(endpoint, renewed);
   oldSocket.end(JSON.stringify(received[0]));
   await launch(endpoint);

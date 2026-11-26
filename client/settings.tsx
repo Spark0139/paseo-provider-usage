@@ -70,7 +70,7 @@ function InstanceEditor({ instance, theme, busy, run, accept, notify, close }: {
 
 const claudeStages = {
   disabled: "已关闭",
-  waitingSession: "等待使用此配置的新会话",
+  waitingSession: "等待会话使用所选配置启动",
   sessionOpened: "会话已匹配，尚未收到启动器连接",
   connected: "启动器已连接，等待额度事件",
   observed: "已收到额度事件",
@@ -107,7 +107,7 @@ function ClaudeOptions({ settings, hostId, theme, busy, run, accept }: {
   const launchHint = result?.launcher === "listed" ? "启动命令已包含采集启动器。"
     : result?.launcher === "unlisted" ? "当前启动命令中未列出 claude-launch.cjs。若通过自己的脚本启动，请确认脚本已调用它。"
     : "请确认此启动配置会通过 claude-launch.cjs 运行现有的 Claude 命令。";
-  const next = stage === "waitingSession" ? "使用选中的配置重新打开会话，再正常发一条消息。"
+  const next = stage === "waitingSession" ? "应用配置后，等当前回合结束，在原 Chat 的标签页菜单选择「重新加载 Agent」，即可保留历史。也可以用此配置新建 Chat。随后正常发一条消息。"
     : stage === "sessionOpened" ? "应用启动命令后，重新打开使用此配置的会话。"
     : stage === "connected" ? "在这个会话正常使用 Claude；它上报额度后会在这里显示。"
     : stage === "receiverError" ? "检查插件数据目录的写入权限，重新加载插件后再打开会话。" : null;
