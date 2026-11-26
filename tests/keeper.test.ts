@@ -78,11 +78,15 @@ test("a persistent 401 terminates after one sign-in attempt and redacts response
     calls.push(String(url));
     return url === prefix + "/auth/login" ? cookie("fake") : new Response("raw-upstream-private", { status: 401 });
   };
-  await assert.rejects(createKeeperClient(instance, "secret", { fetch }).test(), { message: "Keeper request failed (HTTP 401)." });
+  await assert.rejects(createKeeperClient(instance, "secret", { fetch }).test(), { message: "Keeper 请求失败（HTTP 401）。" });
   assert.deepEqual(calls, [prefix + "/usage/identities", prefix + "/auth/login", prefix + "/usage/identities"]);
   calls.length = 0;
-  await assert.rejects(createKeeperClient(instance, "", { fetch }).test(), /requires a login password/);
+  await assert.rejects(createKeeperClient(instance, "", { fetch }).test(), { message: "Keeper 需要登录密码（HTTP 401）。" });
   assert.deepEqual(calls, [prefix + "/usage/identities"]);
+  const rejectedLogin = createKeeperClient(instance, "secret", {
+    fetch: async () => new Response("raw-upstream-private", { status: 401 }),
+  });
+  await assert.rejects(rejectedLogin.test(), { message: "Keeper 登录失败（HTTP 401）。" });
 });
 
 test("manual refresh only queues current enabled Codex credentials and distinguishes duplicate and skipped", async () => {
@@ -108,9 +112,9 @@ test("cache failures, mismatched nested IDs and missing readings never create ob
   const fetch: typeof globalThis.fetch = async url => Response.json(url === prefix + "/usage/identities" ? identities : { items });
   const [mismatch, failed, missing] = await createKeeperClient(instance, "", { fetch }).read();
   assert.equal(mismatch.observedAt, null);
-  assert.match(mismatch.error!, /Invalid Keeper/);
+  assert.equal(mismatch.error, "此账号的额度缓存记录无效。");
   assert.equal(failed.state, "unavailable");
-  assert.match(failed.error!, /HTTP 401/);
+  assert.equal(failed.error, "Keeper 上次采集此账号额度失败（HTTP 401）。");
   assert.equal(failed.observedAt, null);
   assert.equal(missing.windows.length, 0);
   assert.ok(!JSON.stringify(failed).includes("raw-private"));

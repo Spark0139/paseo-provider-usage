@@ -9,7 +9,7 @@ node scripts/mock-daemon.mjs --ui
 
 The first command starts a temporary loopback daemon, installs the production entry with empty settings and then loads a separate demo installation. It checks the settings actions, quota data, native Usage reports and plugin reload. The second command also serves the Paseo web client. Open the printed local address and select **Provider Usage** in the sidebar. On first launch you can skip Paseo onboarding.
 
-Expand **Personal Keeper** to see two enabled accounts out of three. The enabled Plus account has an exhausted five-hour window. **Second Keeper** shows a cached collection failure. Claude shows 77% and 39% remaining. Antigravity shows illustrative native data.
+The first account in **Personal Keeper** opens with its quota rows visible. Two of its three accounts are enabled. The enabled Plus account has an exhausted five-hour window. **Second Keeper** shows a cached collection failure. Claude shows 77% remaining for five hours, 39% for the week and 63% for Fable. The synthetic native report has six windows across Gemini Pro, Gemini Flash and a shared Claude and GPT group. Hover, focus or tap a reset time to see the full local date and UTC offset.
 
 Click **重新读取** to read the cached values. Click **更新 Keeper 额度** on Personal Keeper to submit two enabled accounts in one batch. The mock Keeper accepts one task and reports one already pending. The fixed observation timestamps and quotas stay available for repeatable checks.
 

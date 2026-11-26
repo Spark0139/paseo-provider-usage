@@ -14,6 +14,12 @@ function empty(sourceId: string, kind: SourceSnapshot["kind"], label: string): S
   return { sourceId, kind, label, accounts: [], lastAttemptAt: null, lastSuccessAt: null };
 }
 
+function mergeClaudeWindow(previous: QuotaWindow | undefined, window: QuotaWindow, observedAt: string): QuotaWindow {
+  if (!previous || (window.resetAt && window.resetAt !== previous.resetAt) ||
+      (previous.resetAt && Date.parse(previous.resetAt) <= Date.parse(observedAt))) return window;
+  return { ...window, usedPercent: window.usedPercent ?? previous.usedPercent, resetAt: window.resetAt ?? previous.resetAt };
+}
+
 type KeeperClient = {
   test(): Promise<number>;
   read(): Promise<Account[]>;
@@ -100,10 +106,12 @@ export class UsageService {
     const previous = snapshot.accounts[0];
     if (previous.observedAt && Date.parse(observedAt) < Date.parse(previous.observedAt)) return;
     const merged = new Map(previous.windows.map(window => [window.id, window]));
-    for (const window of windows) merged.set(window.id, window);
+    for (const window of windows) merged.set(window.id, mergeClaudeWindow(merged.get(window.id), window, observedAt));
     const latest = [...merged.values()];
+    const general = latest.filter(window => window.id === "five_hour" || window.id === "seven_day");
+    const exhausted = general.some(window => window.usedPercent === 100 || window.status === "rejected");
     const account: Account = { ...previous, observedAt, windows: latest,
-      state: latest.some(window => window.usedPercent === 100 || window.status === "rejected") ? "exhausted" : "available" };
+      state: exhausted ? "exhausted" : general.length ? "available" : "unknown" };
     this.cache[CLAUDE] = { identity: this.store.claude.providerId, snapshot: {
       ...snapshot, accounts: [account], lastAttemptAt: observedAt, lastSuccessAt: observedAt,
     } };

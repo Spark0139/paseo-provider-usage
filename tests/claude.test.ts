@@ -19,12 +19,32 @@ test("Claude subscription windows and partial SDK events", async () => {
   assert.deepEqual(windows.map(w => [w.id, 100 - w.usedPercent!, w.resetAt]), [
     ["five_hour", 77, "2026-11-26T08:45:00.000Z"],
     ["seven_day", 39, "2026-11-30T15:00:00.000Z"],
+    ["seven_day_overage_included", 63, "2026-12-02T15:00:00.000Z"],
   ]);
   assert.deepEqual(parseClaudeWindows(JSON.parse(await fixture("rate-limit-event.partial.mock.json"))), []);
   assert.deepEqual(parseClaudeWindows({type: "assistant", rate_limit_info: full.rate_limit_info}), []);
   assert.deepEqual(parseClaudeWindows({type: "rate_limit_event", rate_limit_info: {
     rateLimitType: "five_hour", utilization: .25, resetsAt: 1e100,
   }}).map(w => [w.usedPercent, w.resetAt]), [[25, null]]);
+});
+
+test("Fable uses its own measured window and explicitly scoped status", async () => {
+  const full = JSON.parse(await fixture("rate-limit-event.full.mock.json"));
+  const fable = "seven_day_overage_included";
+  delete full.rate_limit_info.unifiedWindows[fable];
+  full.rate_limit_info.unifiedWindows.overage = { utilization: .8, resetsAt: 1796223600 };
+  assert.deepEqual(parseClaudeWindows(full).map(window => window.id), ["five_hour", "seven_day"]);
+
+  const info = { rateLimitType: fable, status: "rejected", resetsAt: 1796223600 };
+  const parse = (rate_limit_info: object) => parseClaudeWindows({ type: "rate_limit_event", rate_limit_info });
+  const [partial] = parse(info);
+  assert.deepEqual(partial, { id: fable, label: "Fable 周额度", durationSeconds: 604800, usedPercent: null,
+    status: "rejected", resetAt: "2026-12-02T15:00:00.000Z" });
+  assert.deepEqual(parse({ ...info, utilization: .91 }), [{ ...partial, usedPercent: 91 }]);
+  assert.deepEqual(parse({ ...info, unifiedWindows: { [fable]: { utilization: 1, resetsAt: 1796223600 } } }),
+    [{ ...partial, usedPercent: 100 }]);
+  assert.deepEqual(parse({ ...info, rateLimitType: "overage", utilization: 1 }), []);
+  assert.deepEqual(parse({ ...info, utilization: 1.1 }), []);
 });
 
 test("interactive provider launch forwards protocol bytes and isolates private observations", async t => {
@@ -84,7 +104,13 @@ test("interactive provider launch forwards protocol bytes and isolates private o
     assert.equal(Buffer.concat(err).toString(), "separate stderr\n");
   }
   await launch(endpoint);
-  assert.deepEqual(received.map(row => row.map(w => w.usedPercent)), [[23, 61]]);
+  assert.deepEqual(received.map(row => row.map(w => w.usedPercent)), [[23, 61, 37]]);
+
+  const unrelated = createConnection(endpoint);
+  const ignored = once(unrelated, "close");
+  unrelated.end(JSON.stringify([{ ...received[0][2], id: "overage" }]));
+  await ignored;
+  assert.equal(received.length, 1);
 
   // An already-connected sender and a still-running launcher both lose their
   // previous generation, even if the same provider gets enabled immediately.

@@ -12,7 +12,7 @@ type Identity = z.infer<typeof identitySchema>;
 
 export function codexIdentities(value: unknown): Identity[] {
   const parsed = identityList.safeParse(value);
-  if (!parsed.success) throw new Error("Invalid Keeper identity list.");
+  if (!parsed.success) throw new Error("Keeper 返回的账号列表格式有误。");
   return parsed.data.identities.filter(i => i.auth_type === 1 && i.type.toLowerCase() === "codex" && !i.is_deleted);
 }
 
@@ -33,7 +33,7 @@ type Row = z.infer<typeof rowSchema>;
 
 export function cacheItems(value: unknown) {
   const parsed = cacheList.safeParse(value);
-  if (!parsed.success) throw new Error("Invalid Keeper quota cache.");
+  if (!parsed.success) throw new Error("Keeper 返回的额度缓存格式有误。");
   return new Map(parsed.data.items.map(item => [item.auth_index, item]));
 }
 
@@ -73,12 +73,12 @@ export function accountFromCache(identity: Identity, cache?: Cached): Account {
   if (cache.status === "failed") {
     const status = cache.http_status_code;
     return { ...account, state: enabled === false ? "disabled" : "unavailable",
-      error: status ? `Keeper quota observation failed (HTTP ${status}).` : "Keeper quota observation failed." };
+      error: status ? `Keeper 上次采集此账号额度失败（HTTP ${status}）。` : "Keeper 上次采集此账号额度失败。" };
   }
   const result = cachedQuota.safeParse(cache.quota);
   const observedAt = instant(cache.refreshed_at);
   if (!result.success || result.data.id !== identity.identity || !observedAt) {
-    return { ...account, error: "Invalid Keeper quota observation." };
+    return { ...account, error: "此账号的额度缓存记录无效。" };
   }
   const rows = result.data.quota ?? [];
   const main = rows.filter(row => row.scope === "window");

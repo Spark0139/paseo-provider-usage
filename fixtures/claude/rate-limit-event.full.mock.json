@@ -17,6 +17,10 @@
         "utilization": 0.61,
         "resetsAt": 1796050800,
         "status": "allowed"
+      },
+      "seven_day_overage_included": {
+        "utilization": 0.37,
+        "resetsAt": 1796223600
       }
     }
   },
