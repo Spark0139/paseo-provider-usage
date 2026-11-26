@@ -16,7 +16,7 @@ type Options = {
 const observation = z.array(windowSchema.extend({ id: z.enum(claudeWindowIds) })).min(1).max(claudeWindowIds.length);
 const socketEnv = "PASEO_PROVIDER_USAGE_SOCKET";
 
-function openReceiver(directory: string, receive: (windows: QuotaWindow[]) => void) {
+function openReceiver(directory: string, connected: () => void, receive: (windows: QuotaWindow[]) => void) {
   // sockaddr_un is limited to 103 usable bytes on macOS. Only the short-lived
   // socket goes in a private temp directory when the daemon home is long.
   const prefix = join(directory, "cc-");
@@ -41,7 +41,9 @@ function openReceiver(directory: string, receive: (windows: QuotaWindow[]) => vo
     client.on("end", () => {
       if (closed || size > 2048) return;
       try {
-        const parsed = observation.safeParse(JSON.parse(Buffer.concat(parts).toString("utf8")));
+        const message: unknown = JSON.parse(Buffer.concat(parts).toString("utf8"));
+        if (message === "launcher-connected") { connected(); return; }
+        const parsed = observation.safeParse(message);
         if (parsed.success) receive(parsed.data);
       } catch {
         // A malformed observation or broken cache must never break an agent.
@@ -65,9 +67,11 @@ function openReceiver(directory: string, receive: (windows: QuotaWindow[]) => vo
 
 export function registerClaude(server: PluginServerContext, options: Options) {
   let receiver: ReturnType<typeof openReceiver> | undefined;
+  let stage: "waitingSession" | "sessionOpened" | "connected" | "observed" | "receiverError" = "waitingSession";
   const invalidate = () => {
     receiver?.close();
     receiver = undefined;
+    stage = "waitingSession";
   };
   const removeHook = server.addHook("agent.open.before", async ({request}) => {
     const settings = options.settings();
@@ -76,22 +80,28 @@ export function registerClaude(server: PluginServerContext, options: Options) {
     try {
       // Each settings generation has a private endpoint. Old sessions and
       // connections cannot become active again after the switch is toggled.
-      receiver ??= openReceiver(options.directory, windows => {
+      receiver ??= openReceiver(options.directory, () => {
+        if (stage !== "observed") stage = "connected";
+      }, windows => {
         if (options.settings().enabled && options.settings().providerId === request.provider) {
           options.ingest(windows, new Date().toISOString());
+          stage = "observed";
         }
       });
       const current = receiver;
       if (await current.ready && receiver === current) {
+        if (stage === "waitingSession" || stage === "receiverError") stage = "sessionOpened";
         return {...request, env: {...request.env, [socketEnv]: current.path}};
       }
-      if (receiver === current) invalidate();
+      if (receiver === current) { invalidate(); stage = "receiverError"; }
     } catch {
       // Unwritable state or unavailable local IPC must leave the launch usable.
       invalidate();
+      stage = "receiverError";
     }
   });
   return {
+    stage: () => options.settings().enabled ? stage : "disabled" as const,
     invalidate,
     dispose() { removeHook(); invalidate(); },
   };

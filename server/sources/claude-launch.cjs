@@ -13,6 +13,7 @@ const {PASEO_PROVIDER_USAGE_SOCKET: endpoint, ...env} = process.env;
 // stdin and stderr use the original file descriptors, including during startup.
 const child = spawn(command, args, {env, stdio: ["inherit", endpoint ? "pipe" : "inherit", "inherit"]});
 if (endpoint) {
+  child.once("spawn", () => sendObservation(endpoint, "launcher-connected"));
   child.stdout.pipe(process.stdout, {end: false});
   observeLines(child.stdout, line => {
     // Large tool results and messages are common. Only decode candidate lines.
@@ -52,11 +53,13 @@ child.once("close", (code, signal) => {
   }
 });
 
-function sendObservation(path, windows) {
-  const socket = createConnection({path});
+function sendObservation(path, message) {
+  let socket;
+  try { socket = createConnection({path}); } catch { return; }
+  if (message === "launcher-connected") socket.unref();
   socket.setTimeout(250, () => socket.destroy());
   socket.on("error", () => socket.destroy());
-  socket.once("connect", () => socket.end(JSON.stringify(windows)));
+  socket.once("connect", () => socket.end(JSON.stringify(message)));
 }
 
 function observeLines(stream, consume) {

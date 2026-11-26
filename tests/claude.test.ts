@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import type { PluginServerContext, PluginSessionOpenRequest } from "@getpaseo/plugin/server";
+import { claudeProviderSetup } from "../server/paseo/claude-config";
 import { parseClaudeWindows, registerClaude } from "../server/sources/claude";
 import type { QuotaWindow } from "../shared/types";
 
@@ -67,8 +68,18 @@ test("interactive provider launch forwards protocol bytes and isolates private o
   for (const change of [{purpose: "history"}, {reason: "import"}, {provider: "codex"}] as const) {
     assert.equal(await hook({request: {...request, ...change}}), undefined);
   }
+  assert.equal(collector.stage(), "waitingSession");
   const endpoint = (await hook({request}))!.env.PASEO_PROVIDER_USAGE_SOCKET;
   assert.equal((await stat(dirname(endpoint))).mode & 0o777, 0o700);
+
+  assert.equal(collector.stage(), "sessionOpened");
+  const quiet = spawn(process.execPath, [wrapper, process.execPath, "-e", "process.stdout.write('quiet')"], {
+    env: { PASEO_PROVIDER_USAGE_SOCKET: endpoint },
+  });
+  quiet.stdout.resume();
+  assert.deepEqual(await once(quiet, "close"), [0, null]);
+  assert.equal(collector.stage(), "connected");
+  assert.equal(received.length, 0);
 
   const stream = await fixture("stream.mock.ndjson");
   const input = Buffer.from(JSON.stringify({type: "control_request", text: "分块"}) + "\n");
@@ -104,6 +115,7 @@ test("interactive provider launch forwards protocol bytes and isolates private o
     assert.equal(Buffer.concat(err).toString(), "separate stderr\n");
   }
   await launch(endpoint);
+  assert.equal(collector.stage(), "observed");
   assert.deepEqual(received.map(row => row.map(w => w.usedPercent)), [[23, 61, 37]]);
 
   const unrelated = createConnection(endpoint);
@@ -119,8 +131,10 @@ test("interactive provider launch forwards protocol bytes and isolates private o
   await once(oldSocket, "connect");
   settings.enabled = false;
   collector.invalidate();
+  assert.equal(collector.stage(), "disabled");
   assert.equal(await hook({request}), undefined);
   settings.enabled = true;
+  assert.equal(collector.stage(), "waitingSession");
   const renewed = (await hook({request}))!.env.PASEO_PROVIDER_USAGE_SOCKET;
   assert.notEqual(endpoint, renewed);
   oldSocket.end(JSON.stringify(received[0]));
@@ -142,4 +156,22 @@ test("launcher relays signals in both directions", async () => {
   child.kill("SIGTERM");
   assert.deepEqual(await result, [null, "SIGKILL"]);
   assert.equal(Buffer.concat(err).toString(), "terminated");
+});
+
+test("Claude setup exposes only profile IDs, labels and whether the effective command lists the launcher", () => {
+  const config = {
+    claude: { command: ["/private/node", "/private/claude-launch.cjs", "/private/reclaude", "--private-arg"] },
+    work: { extends: "claude", label: "Work", env: { DEMO_SECRET: "redacted" } },
+    bare: { extends: "claude", command: ["/private/reclaude"] },
+    hidden: { extends: "claude", enabled: false },
+    other: { extends: "codex" },
+  };
+  const selection = claudeProviderSetup(config, "work");
+  assert.deepEqual(selection, {
+    providers: [{ id: "claude", label: "Claude" }, { id: "work", label: "Work" }, { id: "bare", label: "bare" }],
+    launcher: "listed",
+  });
+  assert.equal(claudeProviderSetup(config, "bare").launcher, "unlisted");
+  assert.equal(claudeProviderSetup(config, "hidden").launcher, "unknown");
+  assert.equal(claudeProviderSetup(config, "other").launcher, "unknown");
 });
