@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
@@ -37,13 +37,18 @@ function pillReading(kind: ProviderKind, sources: SourceSnapshot[], preferred: C
 function PillMark({ kind, publish, host, theme, size }: PluginButtonIconProps & {
   kind: ProviderKind; publish(label: string, title?: string): void;
 }) {
-  const { overview } = useOverview(host.id, kind === "cpa" ? "codex-rail" : "rail");
+  // Paseo can keep a second composer mounted under display:none.
+  const [visible, setVisible] = useState(false);
+  const { overview } = useOverview(host.id, kind === "cpa" ? "codex-rail" : "rail", visible && kind !== "native");
   const view = overview.data;
   const { label, title, used } = pillReading(kind, view?.sources ?? [], view?.codexAccount ?? null);
   useEffect(() => { if (view) publish(label, title); }, [view, label, title, publish]);
   const c = theme.colors;
   const hasBar = used !== undefined;
-  return <View testID={`quota-pill-${providers[kind].id}`} style={{ width: size, height: size, alignItems: "center",
+  return <View testID={`quota-pill-${providers[kind].id}`} onLayout={event => {
+    const { width, height } = event.nativeEvent.layout;
+    setVisible(width > 0 && height > 0);
+  }} style={{ width: size, height: size, alignItems: "center",
     justifyContent: hasBar ? "space-between" : "center", flexShrink: 0 }}>
     <Icon icon={productIcons[providers[kind].id]} size={hasBar ? Math.round(size * 10 / 14) : size} color={c.foreground} />
     {hasBar && <View style={{ width: "100%", height: 3, borderRadius: 1.5, backgroundColor: c.surface0, overflow: "hidden" }}>

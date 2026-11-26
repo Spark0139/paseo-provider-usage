@@ -20,13 +20,13 @@ export function useAppActive() {
   return useSyncExternalStore(subscribeToAppState, appIsActive, appIsActive);
 }
 
-export function useOverview(host: string, surface: Surface) {
+export function useOverview(host: string, surface: Surface, visible = true) {
   const active = useAppActive();
   const read = useRpc(overviewRpc);
   const overview = useQuery({
     queryKey: overviewKey(host), queryFn: () => read({}), ...onDemand,
-    enabled: active, staleTime: 15_000, refetchOnMount: surface !== "rail",
-    refetchInterval: active && (surface === "dashboard" || surface === "cpa" || surface === "codex-rail") ? 60_000 : false,
+    enabled: active && visible, staleTime: 15_000, refetchOnMount: surface !== "rail",
+    refetchInterval: active && visible && (surface === "dashboard" || surface === "cpa" || surface === "codex-rail") ? 60_000 : false,
     refetchIntervalInBackground: false,
   });
   return { active, read, overview };
