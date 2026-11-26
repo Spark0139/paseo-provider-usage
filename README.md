@@ -19,7 +19,7 @@ paseo plugin ls paseo-provider-usage
 
 - **CLIProxyAPI v8**。在 **CPA 实例 → 添加实例** 填入名称、服务根地址（如 `https://cpa.example.com`）和该实例的管理密钥，点击 **测试连接** 后保存。密钥存储在 daemon 上。插件自动发现 Codex OAuth 账号，按实例列出启用数、总数以及每个账号的独立额度窗口。读取失败时，已有读数会连同上次观测时间和错误提示一起显示。
 - **Claude Code / ReClaude**。在 daemon 上准备 Node.js 22.14 或更高版本，将采集启动器加到原 Claude Provider 的启动命令前，在插件设置中填写对应的 Provider ID 并打开 **被动采集 SDK 额度**。新会话在正常使用中收到额度事件后，五小时和每周窗口会显示实际读数。具体命令见[配置示例](docs/claude-collection.md)。
-- **Antigravity**。在 Paseo 中配置好 Antigravity Provider 后，启用插件设置中的 **显示 Antigravity 原生额度**。使用独立代理时，把现有包装命令和环境保留在 Provider 配置中，启动参数保留 `acp` 和 `--disable-telemetry`。侧栏读取该主机已有的原生报告。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
+- **Antigravity**。在 Paseo 中配置好 Antigravity Provider 后，可在插件设置中打开或关闭 **显示 Antigravity 原生额度**。使用独立代理时，把现有包装命令和环境保留在 Provider 配置中，启动参数保留 `acp` 和 `--disable-telemetry`。开启显示后，Paseo 0.17.4 按主机读取原生额度，可能同时更新其他原生来源或复用五分钟缓存，侧栏仅展示其中的 Antigravity 报告。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
 
 ## 卸载
 
