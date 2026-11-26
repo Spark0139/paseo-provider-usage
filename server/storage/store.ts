@@ -2,13 +2,13 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { claudeSchema, displaySchema, instanceSchema } from "../../shared/types";
-import type { ClaudeSettings, KeeperInstance, Display } from "../../shared/types";
+import { claudeSchema, codexAccountSchema, displaySchema, instanceSchema } from "../../shared/types";
+import type { ClaudeSettings, CodexAccountRef, KeeperInstance, Display } from "../../shared/types";
 import type { SettingsView } from "../../shared/contracts";
 
 const configSchema = z.object({
   instances: z.array(instanceSchema.extend({ binding: z.string() })),
-  claude: claudeSchema, display: displaySchema,
+  claude: claudeSchema, display: displaySchema, codexAccount: codexAccountSchema.nullable().default(null),
 });
 type Config = z.infer<typeof configSchema>;
 export type StoredInstance = Config["instances"][number];
@@ -19,7 +19,7 @@ const passwordFile = "keeper-passwords.json";
 
 function defaults(): Config {
   return {
-    instances: [], claude: { enabled: false, providerId: "claude" },
+    instances: [], codexAccount: null, claude: { enabled: false, providerId: "claude" },
     display: { showDisabledAccounts: true, showNativeProviders: true, showResetCountdown: true },
   };
 }
@@ -67,6 +67,7 @@ export class SettingsStore {
   }
 
   get instances() { return this.config.instances; }
+  get codexAccount() { return this.config.codexAccount; }
   get claude() { return this.config.claude; }
   get display() { return this.config.display; }
 
@@ -77,7 +78,7 @@ export class SettingsStore {
       instances: this.instances.map(({ id, label, baseUrl, binding }) => ({
         id, label, baseUrl, hasPassword: !!this.passwords[binding],
       })),
-      claude: this.claude, display: this.display, claudeObservedAt,
+      codexAccount: this.codexAccount, claude: this.claude, display: this.display, claudeObservedAt,
     };
   }
 
@@ -116,9 +117,10 @@ export class SettingsStore {
     this.prunePasswords();
   }
 
-  preferences(update: { display?: Partial<Display>; claude?: ClaudeSettings }) {
+  preferences(update: { codexAccount?: CodexAccountRef | null; display?: Partial<Display>; claude?: ClaudeSettings }) {
     this.persist({
-      ...this.config, display: { ...this.display, ...update.display }, claude: update.claude ?? this.claude,
+      ...this.config, codexAccount: update.codexAccount === undefined ? this.codexAccount : update.codexAccount,
+      display: { ...this.display, ...update.display }, claude: update.claude ?? this.claude,
     });
   }
 

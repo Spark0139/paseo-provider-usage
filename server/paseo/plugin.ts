@@ -68,7 +68,7 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
   server.handle(overviewRpc, async ({ refresh }) => {
     const sources = await usage.overview(refresh);
     if (options.mockNative && store.display.showNativeProviders) sources.push(options.mockNative);
-    return { sources, display: store.display, mock: Boolean(options.mockNative) };
+    return { sources, codexAccount: store.codexAccount, display: store.display, mock: Boolean(options.mockNative) };
   });
   return () => {
     collector.dispose();

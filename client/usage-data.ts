@@ -8,7 +8,7 @@ import type { ProviderKind } from "../shared/providers";
 
 export const overviewKey = (host: string) => ["provider-usage", host, "overview"] as const;
 const onDemand = { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false } as const;
-type Surface = "dashboard" | "rail" | ProviderKind;
+type Surface = "dashboard" | "rail" | "codex-rail" | "settings" | ProviderKind;
 
 function subscribeToAppState(notify: () => void) {
   const subscription = AppState.addEventListener("change", notify);
@@ -20,17 +20,22 @@ export function useAppActive() {
   return useSyncExternalStore(subscribeToAppState, appIsActive, appIsActive);
 }
 
-export function useUsage(host: string, surface: Surface) {
+export function useOverview(host: string, surface: Surface) {
   const active = useAppActive();
   const read = useRpc(overviewRpc);
-  const paseo = usePaseo();
-  const cache = useQueryClient();
   const overview = useQuery({
     queryKey: overviewKey(host), queryFn: () => read({}), ...onDemand,
     enabled: active, staleTime: 15_000, refetchOnMount: surface !== "rail",
-    refetchInterval: active && (surface === "dashboard" || surface === "cpa") ? 60_000 : false,
+    refetchInterval: active && (surface === "dashboard" || surface === "cpa" || surface === "codex-rail") ? 60_000 : false,
     refetchIntervalInBackground: false,
   });
+  return { active, read, overview };
+}
+
+export function useUsage(host: string, surface: "dashboard" | ProviderKind) {
+  const { active, read, overview } = useOverview(host, surface);
+  const paseo = usePaseo();
+  const cache = useQueryClient();
   const view = overview.data;
   const wantsNative = surface === "dashboard" || surface === "native";
   const nativeEnabled = active && !!view && !view.mock && view.display.showNativeProviders && wantsNative;
@@ -53,7 +58,7 @@ export function useUsage(host: string, surface: Surface) {
   });
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if (!active || surface === "rail") return;
+    if (!active) return;
     setNow(Date.now());
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);

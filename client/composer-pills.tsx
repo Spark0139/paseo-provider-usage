@@ -4,19 +4,29 @@ import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegis
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { settingsRpc, type SettingsView } from "../shared/contracts";
 import { providers, type ProviderKind } from "../shared/providers";
-import { enabledCount, type SourceSnapshot } from "../shared/types";
+import type { CodexAccountRef, SourceSnapshot } from "../shared/types";
+import { codexAccounts, codexPeriod, displayedCodexAccount } from "./codex-account";
 import { productIcons } from "./product-icons";
 import { ProductCard } from "./product-card";
-import { useUsage } from "./usage-data";
+import { useOverview, useUsage } from "./usage-data";
 import { remaining } from "./window-row";
 
 const kinds = Object.keys(providers) as ProviderKind[];
 
-function pillReading(kind: ProviderKind, sources: SourceSnapshot[]) {
+function pillReading(kind: ProviderKind, sources: SourceSnapshot[], preferred: CodexAccountRef | null) {
   const name = providers[kind].label;
   if (kind === "native") return { label: name };
+  if (kind === "cpa") {
+    const row = displayedCodexAccount(codexAccounts(sources), preferred);
+    const window = row?.window;
+    const used = window?.usedPercent ?? undefined;
+    const period = window ? codexPeriod(window) : "";
+    const percent = remaining(used ?? null);
+    const label = `${period && period !== "5h" ? period : name} ${percent}`;
+    const title = row ? [name, row.label, period, `剩余 ${percent}`].filter(Boolean).join(" · ") : `${name} · 暂无可显示的常用账号`;
+    return { label, title, used };
+  }
   const accounts = sources.filter(source => source.kind === kind).flatMap(source => source.accounts);
-  if (kind === "cpa") return { label: accounts.length ? `${name} ${enabledCount(accounts)}/${accounts.length}` : name };
   const windows = accounts.flatMap(account => account.windows);
   const window = windows.find(w => w.id === "five_hour" && w.usedPercent !== null) ?? windows.find(w => w.usedPercent !== null);
   if (!window || window.usedPercent === null) return { label: `${name} —` };
@@ -25,11 +35,12 @@ function pillReading(kind: ProviderKind, sources: SourceSnapshot[]) {
 
 // Usage Monitor's rail mark sits in the host's icon slot with a 3px bar beneath it.
 function PillMark({ kind, publish, host, theme, size }: PluginButtonIconProps & {
-  kind: ProviderKind; publish(label: string): void;
+  kind: ProviderKind; publish(label: string, title?: string): void;
 }) {
-  const { view, sources } = useUsage(host.id, "rail");
-  const { label, used } = pillReading(kind, sources);
-  useEffect(() => { if (view) publish(label); }, [view, label, publish]);
+  const { overview } = useOverview(host.id, kind === "cpa" ? "codex-rail" : "rail");
+  const view = overview.data;
+  const { label, title, used } = pillReading(kind, view?.sources ?? [], view?.codexAccount ?? null);
+  useEffect(() => { if (view) publish(label, title); }, [view, label, title, publish]);
   const c = theme.colors;
   const hasBar = used !== undefined;
   return <View testID={`quota-pill-${providers[kind].id}`} style={{ width: size, height: size, alignItems: "center",
@@ -73,20 +84,22 @@ type AgentPills = { workspaceId: string; handles: Map<ProviderKind, PluginButton
 
 export function contributeComposerPills(client: PluginClientContext) {
   const agents = new Map<string, AgentPills>();
-  const labels = new Map<ProviderKind, string>();
+  const captions = new Map<ProviderKind, { label: string; title: string }>();
   let configured: ProviderKind[] = [];
   let settingsVersion = 0;
   const lifetime = new AbortController();
   // Components and registration handles stay stable as labels change, so an open popover stays open.
   const buttons = new Map(kinds.map(kind => {
-    function publish(label: string) {
-      if (labels.get(kind) === label) return;
-      labels.set(kind, label);
-      for (const agent of agents.values()) agent.handles.get(kind)?.update({ label });
+    const defaultTitle = `${providers[kind].label} 额度`;
+    function publish(label: string, title = defaultTitle) {
+      const previous = captions.get(kind);
+      if (previous?.label === label && previous.title === title) return;
+      captions.set(kind, { label, title });
+      for (const agent of agents.values()) agent.handles.get(kind)?.update({ label, title });
     }
     const icon = (props: PluginButtonIconProps) => <PillMark {...props} kind={kind} publish={publish} />;
     const Content = (props: PluginButtonContentProps) => <QuotaPopover {...props} kind={kind} openOverview={() => client.openScreen({ screenId: "usage" })} />;
-    return [kind, { title: `${providers[kind].label} 额度`, icon, behavior: { kind: "popover" as const, Content } }] as const;
+    return [kind, { title: defaultTitle, icon, behavior: { kind: "popover" as const, Content } }] as const;
   }));
 
   function sync(id: string, agent: AgentPills) {
@@ -99,13 +112,13 @@ export function contributeComposerPills(client: PluginClientContext) {
       if (agent.handles.has(kind)) continue;
       const button = buttons.get(kind)!;
       agent.handles.set(kind, client.addComposerPill({ id: `quota-${providers[kind].id}`, workspaceId: agent.workspaceId, agentId: id,
-        button: { ...button, label: labels.get(kind) ?? providers[kind].label } }));
+        button: { ...button, label: kind === "cpa" ? "Codex —" : providers[kind].label, ...captions.get(kind) } }));
     }
   }
   function onSettings(value: SettingsView) {
     settingsVersion++;
     configured = kinds.filter(kind => kind === "cpa" ? value.instances.length > 0 : kind === "claude" ? value.claude.enabled : value.display.showNativeProviders);
-    for (const kind of kinds) if (!configured.includes(kind)) labels.delete(kind);
+    for (const kind of kinds) if (!configured.includes(kind)) captions.delete(kind);
     for (const [id, agent] of agents) sync(id, agent);
   }
   function remove(id: string) {
