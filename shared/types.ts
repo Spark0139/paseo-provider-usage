@@ -23,6 +23,8 @@ export const displaySchema = z.object({
 export const claudeSchema = z.object({
   enabled: z.boolean(), providerId: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,99}$/),
 });
+export const codexAccountSchema = z.object({ sourceId: z.string().min(1), accountId: z.string().min(1) });
+export type CodexAccountRef = z.infer<typeof codexAccountSchema>;
 export const instanceSchema = z.object({
   id: z.string().min(1), label: z.string().trim().min(1).max(100), baseUrl: z.string().min(1),
 });

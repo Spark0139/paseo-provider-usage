@@ -9,8 +9,10 @@ import {
   type SettingsView,
 } from "../shared/contracts";
 import { providers } from "../shared/providers";
+import type { CodexAccountRef } from "../shared/types";
+import { accountKey, codexAccounts, displayedCodexAccount } from "./codex-account";
 import { Button, Field } from "./controls";
-import { overviewKey, useAppActive } from "./usage-data";
+import { overviewKey, useAppActive, useOverview } from "./usage-data";
 import { Timestamp } from "./timestamp";
 
 type InstanceInfo = SettingsView["instances"][number];
@@ -66,6 +68,33 @@ function InstanceEditor({ instance, theme, busy, run, accept, notify, close }: {
       </View>
     </View>}
   </View>;
+}
+
+function CodexAccountPicker({ hostId, preferred, busy, onChange }: {
+  hostId: string; preferred: CodexAccountRef | null; busy: boolean; onChange(value: CodexAccountRef | null): void;
+}) {
+  const { overview } = useOverview(hostId, "settings");
+  const accounts = codexAccounts(overview.data?.sources ?? []);
+  const selected = displayedCodexAccount(accounts, preferred);
+  const options = [{ label: "自动", value: "auto" }, ...accounts.filter(row => row.account.enabled === true)
+    .map(row => ({ label: row.label, value: row.key }))];
+  const value = preferred ? accountKey(preferred) : "auto";
+  if (preferred && !options.some(option => option.value === value)) {
+    const label = selected ? `${selected.label}（${selected.account.enabled === false ? "已停用" : "启用状态未知"}）` : "所选账号暂不可用";
+    options.push({ label, value });
+  }
+  const hint = overview.isLoading ? "正在读取 Keeper 账号…" : overview.isError ? "暂时无法读取 Keeper 账号。"
+    : selected ? `${selected.label} · ${selected.window ? "输入框显示此账号的剩余额度" : "暂无可显示的额度"}`
+    : preferred ? "所选账号暂不可用，输入框显示 —。" : "尚无已启用的账号。";
+  return <SettingsSelect label="常用账号" hint={hint} value={value} options={options} disabled={busy}
+    onValueChange={key => {
+      if (key === value) return;
+      if (key === "auto") onChange(null);
+      else {
+        const option = accounts.find(row => row.key === key);
+        if (option) onChange(option.ref);
+      }
+    }} />;
 }
 
 const claudeStages = {
@@ -196,6 +225,8 @@ function HostSettings({ theme, host, onSaved }: SettingsProps) {
         </SettingsRow>)}
         {editing && <InstanceEditor key={editing === "new" ? "new" : editing.id} instance={editing === "new" ? null : editing}
           theme={theme} busy={busy} run={run} notify={setNotice} accept={accept} close={() => edit(null)} />}
+        {(settings.instances.length > 0 || settings.codexAccount) && <CodexAccountPicker hostId={host.id} preferred={settings.codexAccount}
+          busy={busy} onChange={codexAccount => void run(async () => accept(await preferences({ codexAccount })))} />}
         <SettingsSwitch label="显示停用账号" value={settings.display.showDisabledAccounts} disabled={busy}
           onValueChange={value => changeDisplay("showDisabledAccounts", value)} />
       </SettingsCard>

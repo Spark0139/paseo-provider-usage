@@ -1,22 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import type { PluginButtonContentProps, PluginButtonIconProps, PluginButtonRegistration, PluginClientContext } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { settingsRpc, type SettingsView } from "../shared/contracts";
 import { providers, type ProviderKind } from "../shared/providers";
-import { enabledCount, type SourceSnapshot } from "../shared/types";
+import type { CodexAccountRef, SourceSnapshot } from "../shared/types";
+import { codexAccounts, codexPeriod, displayedCodexAccount } from "./codex-account";
 import { productIcons } from "./product-icons";
 import { ProductCard } from "./product-card";
-import { useUsage } from "./usage-data";
+import { useOverview, useUsage } from "./usage-data";
 import { remaining } from "./window-row";
+import { createPillRefs, createSheetRef, usePillRef, type BindPillView } from "./web";
 
 const kinds = Object.keys(providers) as ProviderKind[];
 
-function pillReading(kind: ProviderKind, sources: SourceSnapshot[]) {
+function pillReading(kind: ProviderKind, sources: SourceSnapshot[], preferred: CodexAccountRef | null) {
   const name = providers[kind].label;
   if (kind === "native") return { label: name };
+  if (kind === "cpa") {
+    const row = displayedCodexAccount(codexAccounts(sources), preferred);
+    const window = row?.window;
+    const used = window?.usedPercent ?? undefined;
+    const period = window ? codexPeriod(window) : "";
+    const percent = remaining(used ?? null);
+    const label = `${period && period !== "5h" ? period : name} ${percent}`;
+    const title = row ? [name, row.label, period, `剩余 ${percent}`].filter(Boolean).join(" · ") : `${name} · 暂无可显示的常用账号`;
+    return { label, title, used };
+  }
   const accounts = sources.filter(source => source.kind === kind).flatMap(source => source.accounts);
-  if (kind === "cpa") return { label: accounts.length ? `${name} ${enabledCount(accounts)}/${accounts.length}` : name };
   const windows = accounts.flatMap(account => account.windows);
   const window = windows.find(w => w.id === "five_hour" && w.usedPercent !== null) ?? windows.find(w => w.usedPercent !== null);
   if (!window || window.usedPercent === null) return { label: `${name} —` };
@@ -24,15 +35,22 @@ function pillReading(kind: ProviderKind, sources: SourceSnapshot[]) {
 }
 
 // Usage Monitor's rail mark sits in the host's icon slot with a 3px bar beneath it.
-function PillMark({ kind, publish, host, theme, size }: PluginButtonIconProps & {
-  kind: ProviderKind; publish(label: string): void;
+function PillMark({ kind, publish, host, theme, size, bindAnchor }: PluginButtonIconProps & {
+  bindAnchor?: BindPillView; kind: ProviderKind; publish(label: string, title?: string): void;
 }) {
-  const { view, sources } = useUsage(host.id, "rail");
-  const { label, used } = pillReading(kind, sources);
-  useEffect(() => { if (view) publish(label); }, [view, label, publish]);
+  const anchorRef = usePillRef(bindAnchor);
+  // Paseo can keep a second composer mounted under display:none.
+  const [visible, setVisible] = useState(false);
+  const { overview } = useOverview(host.id, kind === "cpa" ? "codex-rail" : "rail", visible && kind !== "native");
+  const view = overview.data;
+  const { label, title, used } = pillReading(kind, view?.sources ?? [], view?.codexAccount ?? null);
+  useEffect(() => { if (view) publish(label, title); }, [view, label, title, publish]);
   const c = theme.colors;
   const hasBar = used !== undefined;
-  return <View testID={`quota-pill-${providers[kind].id}`} style={{ width: size, height: size, alignItems: "center",
+  return <View ref={anchorRef} testID={`quota-pill-${providers[kind].id}`} onLayout={event => {
+    const { width, height } = event.nativeEvent.layout;
+    setVisible(width > 0 && height > 0);
+  }} style={{ width: size, height: size, alignItems: "center",
     justifyContent: hasBar ? "space-between" : "center", flexShrink: 0 }}>
     <Icon icon={productIcons[providers[kind].id]} size={hasBar ? Math.round(size * 10 / 14) : size} color={c.foreground} />
     {hasBar && <View style={{ width: "100%", height: 3, borderRadius: 1.5, backgroundColor: c.surface0, overflow: "hidden" }}>
@@ -43,16 +61,17 @@ function PillMark({ kind, publish, host, theme, size }: PluginButtonIconProps & 
 }
 
 // The host anchors and scrolls this body and presents the same content in a mobile sheet.
-function QuotaPopover({ kind, openOverview, host, theme, close }: PluginButtonContentProps & {
-  kind: ProviderKind; openOverview(): void;
+function QuotaPopover({ kind, openOverview, host, theme, close, bindContent }: PluginButtonContentProps & {
+  bindContent?: BindPillView; kind: ProviderKind; openOverview(): void;
 }) {
+  const contentRef = usePillRef(bindContent);
   const { view, sources, overview, native, nativeEnabled, refresh, busy, now, refreshError } = useUsage(host.id, kind);
   const group = sources.filter(source => source.kind === kind);
   const c = theme.colors;
   const failed = overview.isError || refreshError || (kind === "native" && nativeEnabled && native.isError);
   const loading = !view || (kind === "native" && nativeEnabled && native.isLoading);
   const message = failed ? "读取额度失败" : loading ? "正在读取…" : !group.length ? "暂无额度报告" : undefined;
-  return <View testID={`quota-popover-${providers[kind].id}`} style={{ gap: 2 }}>
+  return <View ref={contentRef} testID={`quota-popover-${providers[kind].id}`} style={{ gap: 2 }}>
     {view ? <ProductCard kind={kind} sources={group} hostId={host.id} width="100%" display={view.display}
       theme={theme} compact now={now} floating message={message} failed={failed} /> :
       <Text style={{ color: failed ? c.statusWarning : c.foregroundMuted }}>{message}</Text>}
@@ -73,21 +92,28 @@ type AgentPills = { workspaceId: string; handles: Map<ProviderKind, PluginButton
 
 export function contributeComposerPills(client: PluginClientContext) {
   const agents = new Map<string, AgentPills>();
-  const labels = new Map<ProviderKind, string>();
+  const captions = new Map<ProviderKind, { label: string; title: string }>();
   let configured: ProviderKind[] = [];
   let settingsVersion = 0;
   const lifetime = new AbortController();
   // Components and registration handles stay stable as labels change, so an open popover stays open.
-  const buttons = new Map(kinds.map(kind => {
-    function publish(label: string) {
-      if (labels.get(kind) === label) return;
-      labels.set(kind, label);
-      for (const agent of agents.values()) agent.handles.get(kind)?.update({ label });
+  function createButton(kind: ProviderKind) {
+    const refs = createPillRefs();
+    const sheetRef = createSheetRef();
+    const defaultTitle = `${providers[kind].label} 额度`;
+    function publish(label: string, title = defaultTitle) {
+      const previous = captions.get(kind);
+      if (previous?.label === label && previous.title === title) return;
+      captions.set(kind, { label, title });
+      for (const agent of agents.values()) agent.handles.get(kind)?.update({ label, title });
     }
-    const icon = (props: PluginButtonIconProps) => <PillMark {...props} kind={kind} publish={publish} />;
-    const Content = (props: PluginButtonContentProps) => <QuotaPopover {...props} kind={kind} openOverview={() => client.openScreen({ screenId: "usage" })} />;
-    return [kind, { title: `${providers[kind].label} 额度`, icon, behavior: { kind: "popover" as const, Content } }] as const;
-  }));
+    const icon = (props: PluginButtonIconProps) => <PillMark {...props} kind={kind} publish={publish}
+      bindAnchor={props.layout.platform === "web" && !props.layout.compact ? refs.anchor : undefined} />;
+    const Content = (props: PluginButtonContentProps) => <QuotaPopover {...props} kind={kind}
+      bindContent={props.layout.platform === "web" ? (props.layout.compact ? sheetRef : refs.content) : undefined}
+      openOverview={() => client.openScreen({ screenId: "usage" })} />;
+    return { title: defaultTitle, icon, behavior: { kind: "popover" as const, Content } };
+  }
 
   function sync(id: string, agent: AgentPills) {
     for (const [kind, handle] of agent.handles) {
@@ -97,15 +123,15 @@ export function contributeComposerPills(client: PluginClientContext) {
     }
     for (const kind of configured) {
       if (agent.handles.has(kind)) continue;
-      const button = buttons.get(kind)!;
+      const button = createButton(kind);
       agent.handles.set(kind, client.addComposerPill({ id: `quota-${providers[kind].id}`, workspaceId: agent.workspaceId, agentId: id,
-        button: { ...button, label: labels.get(kind) ?? providers[kind].label } }));
+        button: { ...button, label: kind === "cpa" ? "Codex —" : providers[kind].label, ...captions.get(kind) } }));
     }
   }
   function onSettings(value: SettingsView) {
     settingsVersion++;
     configured = kinds.filter(kind => kind === "cpa" ? value.instances.length > 0 : kind === "claude" ? value.claude.enabled : value.display.showNativeProviders);
-    for (const kind of kinds) if (!configured.includes(kind)) labels.delete(kind);
+    for (const kind of kinds) if (!configured.includes(kind)) captions.delete(kind);
     for (const [id, agent] of agents) sync(id, agent);
   }
   function remove(id: string) {

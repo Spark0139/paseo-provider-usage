@@ -1,16 +1,17 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
-import { claudeSchema, displaySchema, instanceSchema, snapshotSchema } from "./types";
+import { claudeSchema, codexAccountSchema, displaySchema, instanceSchema, snapshotSchema } from "./types";
 
 const empty = z.object({});
 export const settingsSchema = z.object({
+  codexAccount: codexAccountSchema.nullable(),
   instances: z.array(instanceSchema.extend({ hasPassword: z.boolean() })),
   claude: claudeSchema, display: displaySchema, claudeObservedAt: z.string().nullable(),
 });
 export type SettingsView = z.infer<typeof settingsSchema>;
 export const overviewRpc = defineRpc({
   name: "usage.overview", input: z.object({ refresh: z.boolean().optional() }),
-  output: z.object({ sources: z.array(snapshotSchema), display: displaySchema, mock: z.boolean() }),
+  output: z.object({ sources: z.array(snapshotSchema), display: displaySchema, codexAccount: codexAccountSchema.nullable(), mock: z.boolean() }),
 });
 export const settingsRpc = defineRpc({ name: "config.read", input: empty, output: settingsSchema });
 const instanceDraft = instanceSchema.partial({ id: true }).extend({ password: z.string().optional() }).strict();
@@ -47,6 +48,6 @@ export const claudeDiagnosticsRpc = defineRpc({
 });
 
 export const preferencesRpc = defineRpc({
-  name: "config.preferences", input: z.object({ claude: claudeSchema.optional(), display: displaySchema.partial().optional() }),
+  name: "config.preferences", input: z.object({ codexAccount: codexAccountSchema.nullable().optional(), claude: claudeSchema.optional(), display: displaySchema.partial().optional() }),
   output: settingsSchema,
 });

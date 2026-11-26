@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -43,6 +43,28 @@ test("password reuse is limited to the same normalized Keeper URL, supports expl
   assert.equal(restarted.resolve({ ...draft, id, password: "" }).password, "");
   restarted.remove(id);
   assert.equal(restarted.instances.length, 0);
+});
+
+test("an existing configuration preserves its passwords and settings when saving a composer account", t => {
+  const store = settings(t);
+  store.save(draft);
+  store.preferences({ claude: { enabled: true, providerId: "demo-claude" }, display: { showDisabledAccounts: false } });
+  const path = join(store.directory, "config-v2.json");
+  const prior = JSON.parse(readFileSync(path, "utf8"));
+  delete prior.codexAccount;
+  writeFileSync(path, JSON.stringify(prior));
+  const upgraded = new SettingsStore(store.directory);
+  assert.equal(upgraded.codexAccount, null);
+  const baseline = upgraded.view(null);
+  const preferred = { sourceId: upgraded.instances[0].id, accountId: "synthetic-account-id" };
+  upgraded.preferences({ codexAccount: preferred });
+  const reloaded = new SettingsStore(store.directory);
+  assert.deepEqual(reloaded.view(null), { ...baseline, codexAccount: preferred });
+  assert.equal(reloaded.password(reloaded.instances[0]), draft.password);
+  reloaded.preferences({ display: { showResetCountdown: false } });
+  assert.deepEqual(reloaded.codexAccount, preferred);
+  reloaded.preferences({ codexAccount: null });
+  assert.equal(new SettingsStore(store.directory).codexAccount, null);
 });
 
 test("overviews share reads, bypass local TTL on demand and retain actual observation times on errors", async t => {
