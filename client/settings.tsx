@@ -10,7 +10,7 @@ import {
 } from "../shared/contracts";
 import { providers } from "../shared/providers";
 import { Button, Field } from "./controls";
-import { overviewKey } from "./overview";
+import { overviewKey } from "./usage-data";
 import { Timestamp } from "./timestamp";
 
 type InstanceInfo = SettingsView["instances"][number];
@@ -107,7 +107,9 @@ function ClaudeOptions({ settings, theme, busy, run, accept }: {
   </SettingsSection>;
 }
 
-function HostSettings({ theme, host }: PluginSurfaceProps) {
+type SettingsProps = PluginSurfaceProps & { onSaved: (value: SettingsView) => void };
+
+function HostSettings({ theme, host, onSaved }: SettingsProps) {
   const read = useRpc(settingsRpc);
   const preferences = useRpc(preferencesRpc);
   const cache = useQueryClient();
@@ -120,6 +122,7 @@ function HostSettings({ theme, host }: PluginSurfaceProps) {
   const locked = useRef(false);
   const c = theme.colors;
   function accept(value: SettingsView) {
+    onSaved(value);
     cache.setQueryData(queryKey, value);
     void cache.invalidateQueries({ queryKey: overviewKey(host.id) });
   }
@@ -172,6 +175,6 @@ function HostSettings({ theme, host }: PluginSurfaceProps) {
   </View>;
 }
 
-export function Settings(props: PluginSurfaceProps) {
+export function Settings(props: SettingsProps) {
   return <HostSettings key={props.host.id} {...props} />;
 }
