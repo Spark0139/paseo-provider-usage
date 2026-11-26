@@ -27,8 +27,11 @@ const payloadSchema = z.object({
 function period(duration: number | null | undefined, slot: "primary" | "secondary") {
   if (duration === 18000) return { id: "five_hour", label: "5-hour" };
   if (duration === 604800) return { id: "seven_day", label: "Weekly" };
-  if (duration && duration >= 28 * 86400 && duration <= 31 * 86400) {
-    return { id: "monthly", label: "Monthly" };
+  if (duration) {
+    let label = `${duration}-second`;
+    if (duration % 86400 === 0) label = `${duration / 86400}-day`;
+    else if (duration % 3600 === 0) label = `${duration / 3600}-hour`;
+    return { id: `duration-${duration}`, label };
   }
   return { id: slot, label: slot === "primary" ? "Primary window" : "Secondary window" };
 }
@@ -67,9 +70,11 @@ export function readQuota(value: unknown, now: Date): Pick<Account, "state" | "p
   const { plan_type, rate_limit, code_review_rate_limit, additional_rate_limits } = parsed.data;
   const main = windowsFor(rate_limit, now);
   const windows = [...main, ...windowsFor(code_review_rate_limit, now, "review-", "Code review · ")];
-  for (const [index, extra] of (additional_rate_limits ?? []).entries()) {
-    const name = extra.limit_name || extra.metered_feature || `Additional limit ${index + 1}`;
-    windows.push(...windowsFor(extra.rate_limit, now, `additional-${index}-`, `${name} · `));
+  for (const extra of additional_rate_limits ?? []) {
+    const feature = extra.metered_feature?.trim() || extra.limit_name?.trim();
+    if (!feature) continue;
+    const name = extra.limit_name?.trim() || feature;
+    windows.push(...windowsFor(extra.rate_limit, now, `feature/${encodeURIComponent(feature)}/`, `${name} · `));
   }
   let state: Account["state"] = "unknown";
   if (rate_limit?.limit_reached || rate_limit?.allowed === false || main.some(w => w.usedPercent === 100)) {

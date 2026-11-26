@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Account, CpaInstance } from "../../shared/types";
 import { readQuota } from "./cpa-windows";
@@ -69,8 +70,10 @@ export async function testCpa(instance: CpaInstance, key: string, options: Optio
 async function readAccount(file: Credential, client: Client, now: () => Date): Promise<Account> {
   const accountId = file.id_token?.chatgpt_account_id;
   const enabled = typeof file.disabled === "boolean" ? !file.disabled : null;
+  // CPA derives auth_index from the file, which can later hold a different login.
+  const identity = JSON.stringify([file.auth_index ?? file.name, accountId ?? null]);
   const account: Account = {
-    id: file.auth_index || `file:${file.name}`,
+    id: createHash("sha256").update(identity).digest("hex"),
     label: file.name,
     enabled,
     state: enabled === false ? "disabled" : "unknown",

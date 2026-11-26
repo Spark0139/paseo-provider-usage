@@ -78,3 +78,36 @@ test("failed discovery has a safe instance-level error and performs no forwarded
   await assert.rejects(testCpa(instance, key, { fetch: async () => Response.json({ files: [{ type: "codex", name: "account.json" }] }) }),
     /credential types/);
 });
+
+test("stable window IDs follow feature and duration, and account IDs follow the login in each file", async () => {
+  const file = list.files[0];
+  const a = { limit_window_seconds: 28 * 86400, used_percent: 21 };
+  const b = { limit_window_seconds: 31 * 86400, used_percent: 54 };
+  const feature = (metered_feature: string) => ({
+    metered_feature, limit_name: "Extra", rate_limit: { primary_window: a },
+  });
+  const extra = [feature("search"), feature("review")];
+
+  async function read(accountId: string, reversed: boolean) {
+    const payload = {
+      rate_limit: { primary_window: reversed ? b : a, secondary_window: reversed ? a : b },
+      additional_rate_limits: reversed ? [...extra].reverse() : extra,
+    };
+    const accounts = await pullCpa(instance, key, { now, fetch: async (_url, init) => {
+      if (init?.method === "GET") {
+        return Response.json({ files: [{ ...file, id_token: { chatgpt_account_id: accountId } }] });
+      }
+      return Response.json({ status_code: 200, body: JSON.stringify(payload) });
+    } });
+    return accounts[0];
+  }
+
+  const original = await read("first-synthetic-user", false);
+  const reordered = await read("first-synthetic-user", true);
+  assert.equal(original.id, reordered.id);
+  assert.equal(new Set(original.windows.map(w => w.id)).size, 4);
+  const byId = (windows: typeof original.windows) => new Map(windows.map(w => [w.id, w]));
+  assert.deepEqual(byId(original.windows), byId(reordered.windows));
+  assert.notEqual(original.id, (await read("different-synthetic-user", true)).id);
+  assert.ok(!original.id.includes("first-synthetic-user"));
+});
