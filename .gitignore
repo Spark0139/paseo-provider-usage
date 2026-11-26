@@ -10,7 +10,7 @@ GEMINI.md
 /paseo-provider-usage-handoff*.zip
 
 # Dependencies and generated output
-node_modules/
+node_modules
 dist/
 build/
 coverage/
