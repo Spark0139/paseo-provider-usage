@@ -10,6 +10,7 @@ import { productIcons } from "./product-icons";
 import { ProductCard } from "./product-card";
 import { useOverview, useUsage } from "./usage-data";
 import { remaining } from "./window-row";
+import { createPillRefs, createSheetRef, usePillRef, type BindPillView } from "./web";
 
 const kinds = Object.keys(providers) as ProviderKind[];
 
@@ -34,9 +35,10 @@ function pillReading(kind: ProviderKind, sources: SourceSnapshot[], preferred: C
 }
 
 // Usage Monitor's rail mark sits in the host's icon slot with a 3px bar beneath it.
-function PillMark({ kind, publish, host, theme, size }: PluginButtonIconProps & {
-  kind: ProviderKind; publish(label: string, title?: string): void;
+function PillMark({ kind, publish, host, theme, size, bindAnchor }: PluginButtonIconProps & {
+  bindAnchor?: BindPillView; kind: ProviderKind; publish(label: string, title?: string): void;
 }) {
+  const anchorRef = usePillRef(bindAnchor);
   // Paseo can keep a second composer mounted under display:none.
   const [visible, setVisible] = useState(false);
   const { overview } = useOverview(host.id, kind === "cpa" ? "codex-rail" : "rail", visible && kind !== "native");
@@ -45,7 +47,7 @@ function PillMark({ kind, publish, host, theme, size }: PluginButtonIconProps & 
   useEffect(() => { if (view) publish(label, title); }, [view, label, title, publish]);
   const c = theme.colors;
   const hasBar = used !== undefined;
-  return <View testID={`quota-pill-${providers[kind].id}`} onLayout={event => {
+  return <View ref={anchorRef} testID={`quota-pill-${providers[kind].id}`} onLayout={event => {
     const { width, height } = event.nativeEvent.layout;
     setVisible(width > 0 && height > 0);
   }} style={{ width: size, height: size, alignItems: "center",
@@ -59,16 +61,17 @@ function PillMark({ kind, publish, host, theme, size }: PluginButtonIconProps & 
 }
 
 // The host anchors and scrolls this body and presents the same content in a mobile sheet.
-function QuotaPopover({ kind, openOverview, host, theme, close }: PluginButtonContentProps & {
-  kind: ProviderKind; openOverview(): void;
+function QuotaPopover({ kind, openOverview, host, theme, close, bindContent }: PluginButtonContentProps & {
+  bindContent?: BindPillView; kind: ProviderKind; openOverview(): void;
 }) {
+  const contentRef = usePillRef(bindContent);
   const { view, sources, overview, native, nativeEnabled, refresh, busy, now, refreshError } = useUsage(host.id, kind);
   const group = sources.filter(source => source.kind === kind);
   const c = theme.colors;
   const failed = overview.isError || refreshError || (kind === "native" && nativeEnabled && native.isError);
   const loading = !view || (kind === "native" && nativeEnabled && native.isLoading);
   const message = failed ? "读取额度失败" : loading ? "正在读取…" : !group.length ? "暂无额度报告" : undefined;
-  return <View testID={`quota-popover-${providers[kind].id}`} style={{ gap: 2 }}>
+  return <View ref={contentRef} testID={`quota-popover-${providers[kind].id}`} style={{ gap: 2 }}>
     {view ? <ProductCard kind={kind} sources={group} hostId={host.id} width="100%" display={view.display}
       theme={theme} compact now={now} floating message={message} failed={failed} /> :
       <Text style={{ color: failed ? c.statusWarning : c.foregroundMuted }}>{message}</Text>}
@@ -94,7 +97,9 @@ export function contributeComposerPills(client: PluginClientContext) {
   let settingsVersion = 0;
   const lifetime = new AbortController();
   // Components and registration handles stay stable as labels change, so an open popover stays open.
-  const buttons = new Map(kinds.map(kind => {
+  function createButton(kind: ProviderKind) {
+    const refs = createPillRefs();
+    const sheetRef = createSheetRef();
     const defaultTitle = `${providers[kind].label} 额度`;
     function publish(label: string, title = defaultTitle) {
       const previous = captions.get(kind);
@@ -102,10 +107,13 @@ export function contributeComposerPills(client: PluginClientContext) {
       captions.set(kind, { label, title });
       for (const agent of agents.values()) agent.handles.get(kind)?.update({ label, title });
     }
-    const icon = (props: PluginButtonIconProps) => <PillMark {...props} kind={kind} publish={publish} />;
-    const Content = (props: PluginButtonContentProps) => <QuotaPopover {...props} kind={kind} openOverview={() => client.openScreen({ screenId: "usage" })} />;
-    return [kind, { title: defaultTitle, icon, behavior: { kind: "popover" as const, Content } }] as const;
-  }));
+    const icon = (props: PluginButtonIconProps) => <PillMark {...props} kind={kind} publish={publish}
+      bindAnchor={props.layout.platform === "web" && !props.layout.compact ? refs.anchor : undefined} />;
+    const Content = (props: PluginButtonContentProps) => <QuotaPopover {...props} kind={kind}
+      bindContent={props.layout.platform === "web" ? (props.layout.compact ? sheetRef : refs.content) : undefined}
+      openOverview={() => client.openScreen({ screenId: "usage" })} />;
+    return { title: defaultTitle, icon, behavior: { kind: "popover" as const, Content } };
+  }
 
   function sync(id: string, agent: AgentPills) {
     for (const [kind, handle] of agent.handles) {
@@ -115,7 +123,7 @@ export function contributeComposerPills(client: PluginClientContext) {
     }
     for (const kind of configured) {
       if (agent.handles.has(kind)) continue;
-      const button = buttons.get(kind)!;
+      const button = createButton(kind);
       agent.handles.set(kind, client.addComposerPill({ id: `quota-${providers[kind].id}`, workspaceId: agent.workspaceId, agentId: id,
         button: { ...button, label: kind === "cpa" ? "Codex —" : providers[kind].label, ...captions.get(kind) } }));
     }
