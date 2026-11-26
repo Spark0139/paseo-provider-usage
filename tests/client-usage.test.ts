@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { expandProviderSnapshot } from "@getpaseo/protocol/provider-snapshot-codec";
+import { antigravityGroups } from "../shared/antigravity-models";
 import { antigravitySnapshot } from "../shared/native-usage";
 
 const nativeData: Parameters<typeof antigravitySnapshot>[0] =
@@ -38,4 +40,50 @@ test("keeps separate reports and repeated window labels when the host supplies i
   assert.notEqual(a.id, b.id);
   assert.deepEqual([a.label, b.label], [first.label, first.label]);
   assert.deepEqual([a.usedPercent, b.usedPercent], [25, 69]);
+});
+
+const catalog: NonNullable<Parameters<typeof antigravitySnapshot>[1]> =
+  JSON.parse(readFileSync("fixtures/native/provider-catalog.mock.json", "utf8"));
+
+test("joins cached model names to exact windows and shared pools without copying quota values to members", () => {
+  const { models, accounts } = antigravitySnapshot(nativeData, catalog);
+  assert.equal(models?.length, 5);
+  const { groups, unlisted } = antigravityGroups(accounts[0].windows, models);
+  assert.deepEqual(groups.map(g => [g.name, g.shared, g.models.map(m => m.label), g.windows.length]), [
+    ["Gemini Pro", false, ["Gemini Pro"], 2],
+    ["Gemini Flash", false, ["Gemini Flash"], 2],
+    ["Claude and GPT", true, ["Claude Sonnet 4.6", "GPT-OSS 120B"], 2],
+  ]);
+  assert.deepEqual(unlisted.map(m => m.label), ["Gemini 4 Argon"]);
+  assert.equal(groups.at(-1)?.windows.at(-1)?.disabled, true);
+});
+
+test("keeps the reported Gemini pool once, separates the known Argon bucket, and retains unfamiliar periods", () => {
+  const [report] = nativeData.providers;
+  const [sample] = report.windows;
+  const windows = [
+    { ...sample, id: "gemini-5h", label: "Gemini · 5h" },
+    { ...sample, id: "gemini-argon-wtu-weekly", label: "Gemini · Weekly" },
+    { ...sample, id: "other", label: "Gamma · Beta · Burst limit" },
+  ];
+  const { models, accounts } = antigravitySnapshot({ providers: [{ ...report, windows }] }, catalog);
+  const { groups } = antigravityGroups(accounts[0].windows, models);
+  assert.deepEqual(groups.map(g => [g.name, g.models.map(m => m.label), g.windows.map(w => w.period)]), [
+    ["Gemini", ["Gemini Pro", "Gemini Flash"], ["5h"]],
+    ["Gemini 4 Argon", ["Gemini 4 Argon"], ["Weekly"]],
+    ["Gamma · Beta", [], ["Burst limit"]],
+  ]);
+});
+
+test("keeps provider catalogs separate from account data, including when usage or the catalog is missing", () => {
+  const decoded = { entries: expandProviderSnapshot(catalog.compactSnapshot!) };
+  assert.deepEqual(antigravitySnapshot(nativeData, decoded), antigravitySnapshot(nativeData, catalog));
+  const [native, other] = decoded.entries;
+  const [model] = native.models!;
+  const entry = { ...native, models: [model, { ...model, provider: "codex" }, { ...model, id: "hidden", isSelectable: false }] };
+  const { models, accounts } = antigravitySnapshot({ providers: [] }, { entries: [other, entry] });
+  assert.deepEqual(models, [{ id: model.id, label: model.label }]);
+  assert.equal(accounts.length, 0);
+  assert.equal(antigravitySnapshot(nativeData, { entries: [other] }).models, undefined);
+  assert.deepEqual(antigravitySnapshot(nativeData).accounts, antigravitySnapshot(nativeData, catalog).accounts);
 });

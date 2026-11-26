@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { providers, type ProviderKind } from "./providers";
 
 export const windowSchema = z.object({
   id: z.string(), label: z.string(), usedPercent: z.number().min(0).max(100).nullable(),
@@ -11,7 +12,9 @@ export const accountSchema = z.object({
   error: z.string().optional(),
 });
 export const snapshotSchema = z.object({
-  sourceId: z.string(), kind: z.enum(["cpa", "claude", "native"]), label: z.string(),
+  sourceId: z.string(), kind: z.enum(Object.keys(providers) as ProviderKind[]), label: z.string(),
+  instanceLabel: z.string().optional(),
+  models: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
   accounts: z.array(accountSchema), lastAttemptAt: z.string().nullable(),
   lastSuccessAt: z.string().nullable(), error: z.string().optional(),
 });

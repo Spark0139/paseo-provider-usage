@@ -8,6 +8,7 @@ import {
   clearSecretRpc, deleteInstanceRpc, preferencesRpc, saveInstanceRpc, settingsRpc, testInstanceRpc,
   type SettingsView,
 } from "../shared/contracts";
+import { providers } from "../shared/providers";
 import { Button, Field } from "./controls";
 import { overviewKey } from "./overview";
 import { Timestamp } from "./timestamp";
@@ -73,20 +74,31 @@ function ClaudeOptions({ settings, theme, busy, run, accept }: {
   const change = useRpc(preferencesRpc);
   const [providerId, setProviderId] = useState(settings.claude.providerId);
   const provider = providerId.trim();
+  const [editing, setEditing] = useState(false);
   const changed = provider !== settings.claude.providerId;
   const valid = /^[a-z0-9][a-z0-9._-]{0,99}$/.test(provider);
-  const update = (enabled: boolean) => void run(async () => {
-    accept(await change({ claude: { enabled, providerId: provider } }));
+  const update = (enabled: boolean, providerId: string) => void run(async () => {
+    accept(await change({ claude: { enabled, providerId } }));
+    setEditing(false);
   });
-  return <SettingsSection title="Claude Code">
+  return <SettingsSection title={providers.claude.label}>
     <SettingsCard>
-      <SettingsSwitch label="被动采集 SDK 额度" hint="读取此 Provider 正常推理时上报的额度事件。"
-        value={settings.claude.enabled} disabled={busy || !valid} onValueChange={update} />
-      <View style={{ gap: 8, padding: 14 }}>
-        <Field label="运行 Claude Code 的 Provider ID" onChange={setProviderId} value={providerId} theme={theme} disabled={busy} />
-        {changed && <Button label="保存 Provider ID" theme={theme} disabled={busy || !valid}
-          onPress={() => update(settings.claude.enabled)} />}
-      </View>
+      <SettingsSwitch label="采集额度" value={settings.claude.enabled} disabled={busy || editing}
+        onValueChange={enabled => update(enabled, settings.claude.providerId)} />
+      <SettingsRow label="关联 Provider">
+        <Button label="编辑" theme={theme} disabled={busy || editing} onPress={() => {
+          setProviderId(settings.claude.providerId);
+          setEditing(true);
+        }} />
+      </SettingsRow>
+      {editing && <View style={{ gap: 8, padding: 14 }}>
+        <Field label="Provider ID" onChange={setProviderId} value={providerId} theme={theme} disabled={busy} />
+        <View style={actionRow}>
+          <Button label="保存" theme={theme} disabled={busy || !valid || !changed}
+            onPress={() => update(settings.claude.enabled, provider)} />
+          <Button label="取消" theme={theme} disabled={busy} onPress={() => setEditing(false)} />
+        </View>
+      </View>}
       <SettingsRow label="采集状态" hint={!settings.claude.enabled ? "已关闭" : settings.claudeObservedAt ? undefined : "等待首次额度事件"}>
         {settings.claude.enabled && settings.claudeObservedAt &&
           <Timestamp iso={settings.claudeObservedAt} now={Date.now()} label="最近采集" theme={theme} alignEnd />}
@@ -120,6 +132,9 @@ function HostSettings({ theme, host }: PluginSurfaceProps) {
       setNotice({ text: error instanceof Error ? error.message : "请求失败，请重试。", error: true });
     } finally { locked.current = false; setBusy(false); }
   }
+  function changeDisplay(key: keyof SettingsView["display"], value: boolean) {
+    void run(async () => accept(await preferences({ display: { [key]: value } })));
+  }
   function edit(instance: InstanceInfo | "new" | null) {
     setNotice(null); setEditing(instance);
   }
@@ -128,28 +143,32 @@ function HostSettings({ theme, host }: PluginSurfaceProps) {
     {result.isError && <Button label="重试" theme={theme} onPress={() => void result.refetch()} />}
   </View>;
   return <View style={{ gap: 18 }}>
-    <SettingsSection title="CPA Usage Keeper 实例" trailing={<Button label="添加实例" theme={theme}
+    <SettingsSection title={providers.cpa.label} trailing={<Button label="添加 Keeper 实例" theme={theme}
       disabled={busy || editing !== null} onPress={() => edit("new")} />}>
       <SettingsCard>
-        {!settings.instances.length && !editing && <SettingsRow label="暂无 Keeper 实例" hint="添加实例后可读取其中的 Codex 账号和缓存额度。" />}
+        {!settings.instances.length && !editing && <SettingsRow label="暂无 Keeper 实例" />}
         {settings.instances.map(instance => <SettingsRow key={instance.id} label={instance.label}
           hint={`${instance.baseUrl} · ${instance.hasPassword ? "已存登录密码" : "未存登录密码"}`}>
           <Button label="编辑" theme={theme} disabled={busy || editing !== null} onPress={() => edit(instance)} />
         </SettingsRow>)}
         {editing && <InstanceEditor key={editing === "new" ? "new" : editing.id} instance={editing === "new" ? null : editing}
           theme={theme} busy={busy} run={run} notify={setNotice} accept={accept} close={() => edit(null)} />}
+        <SettingsSwitch label="显示停用账号" value={settings.display.showDisabledAccounts} disabled={busy}
+          onValueChange={value => changeDisplay("showDisabledAccounts", value)} />
       </SettingsCard>
     </SettingsSection>
     {notice && <Text accessibilityLiveRegion="polite" style={{ color: notice.error ? c.statusDanger : c.foreground }}>{notice.text}</Text>}
     <ClaudeOptions key={settings.claude.providerId} settings={settings} theme={theme} busy={busy} run={run} accept={accept} />
-    <SettingsSection title="显示">
+    <SettingsSection title={providers.native.label}>
       <SettingsCard>
-        {([["showDisabledAccounts", "显示停用账号"], ["showNativeProviders", "显示 Antigravity 原生额度"],
-          ["showResetCountdown", "显示重置倒计时"]] as const).map(([key, label]) =>
-          <SettingsSwitch key={key} label={label} value={settings.display[key]} disabled={busy}
-            onValueChange={value => void run(async () => accept(await preferences({ display: { [key]: value } })))} />)}
+        <SettingsSwitch label="显示额度" value={settings.display.showNativeProviders} disabled={busy}
+          onValueChange={value => changeDisplay("showNativeProviders", value)} />
       </SettingsCard>
     </SettingsSection>
+    <SettingsCard>
+      <SettingsSwitch label="显示重置倒计时" value={settings.display.showResetCountdown} disabled={busy}
+        onValueChange={value => changeDisplay("showResetCountdown", value)} />
+    </SettingsCard>
   </View>;
 }
 

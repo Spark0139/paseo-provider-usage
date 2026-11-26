@@ -2,7 +2,8 @@ import { z } from "zod";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { hashAccountKey, unavailable, windowFromUsedPct, type UsageReport } from "@getpaseo/plugin/server/usage";
 import type { Account, SourceSnapshot } from "../../shared/types";
-import type { UsageService } from "../usage/service";
+import { providers } from "../../shared/providers";
+import { readTargets, type UsageSource } from "../usage/source";
 
 const locator = z.object({ source: z.string(), account: z.string(), binding: z.string() }).strict();
 
@@ -25,43 +26,29 @@ export function reportFor(snapshot: SourceSnapshot, account: Account): UsageRepo
   };
 }
 
-export function registerUsage(server: Pick<PluginServerContext, "registerUsageSource">, usage: UsageService) {
-  for (const kind of ["cpa", "claude"] as const) {
+export function registerUsage(server: Pick<PluginServerContext, "registerUsageSource">, sources: readonly UsageSource[]) {
+  for (const source of sources) {
     server.registerUsageSource({
-      id: kind === "cpa" ? "keeper-codex-quota" : "claude-passive-quota",
-      label: kind === "cpa" ? "CPA Keeper · Codex" : "Claude Code · SDK",
+      id: source.registrationId,
+      label: providers[source.kind].label,
       input: locator,
       async discover(scope) {
         if (scope.kind !== "global") return [];
-        const requested = usage.store.instances;
-        const sources = kind === "cpa"
-          ? await usage.keeperSources()
-          : usage.store.claude.enabled ? [usage.claudeSnapshot()] : [];
-        return sources.flatMap(source => {
-          const instance = requested.find(item => item.id === source.sourceId);
-          if (kind === "cpa" && (!instance || !usage.isCurrent(instance))) return [];
-          const binding = instance ? instance.binding : usage.store.claude.providerId;
-          return source.accounts.map(account => ({
-            key: hashAccountKey(JSON.stringify([source.sourceId, account.id])),
-            label: kind === "cpa" ? `${source.label} · ${account.label}` : account.label,
-            input: { source: source.sourceId, account: account.id, binding },
-          }));
-        });
+        const readings = await readTargets(source.targets());
+        return readings.flatMap(({ target, snapshot }) => snapshot.accounts.map(account => ({
+          key: hashAccountKey(JSON.stringify([target.id, account.id])),
+          label: account.label === snapshot.label ? undefined : account.label,
+          input: { source: target.id, account: account.id, binding: target.binding },
+        })));
       },
       async fetch(input) {
-        const { source, account, binding } = locator.parse(input);
-        const instance = usage.store.instances.find(item => item.id === source);
-        if (kind === "cpa" && (!instance || instance.binding !== binding)) {
-          return unavailable({ kind: "no_quota", detail: "Account configuration has changed." });
+        const { source: id, account, binding } = locator.parse(input);
+        const target = source.targets().find(target => target.id === id && target.binding === binding);
+        const snapshot = await target?.read();
+        const entry = snapshot?.accounts.find(item => item.id === account);
+        if (!snapshot || !entry || !target?.current()) {
+          return unavailable({ kind: "no_quota", detail: "Account is no longer configured." });
         }
-        if (kind === "claude" && binding !== usage.store.claude.providerId) {
-          return unavailable({ kind: "no_quota", detail: "Claude provider has changed." });
-        }
-        const snapshot = kind === "cpa"
-          ? instance && await usage.keeperSnapshot(instance)
-          : usage.store.claude.enabled && usage.claudeSnapshot();
-        const entry = snapshot && snapshot.sourceId === source && snapshot.accounts.find(item => item.id === account);
-        if (!snapshot || !entry || (instance && !usage.isCurrent(instance))) return unavailable({ kind: "no_quota", detail: "Account is no longer configured." });
         return reportFor(snapshot, entry);
       },
     });

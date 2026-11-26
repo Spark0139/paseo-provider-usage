@@ -14,7 +14,8 @@ test("native global discovery reuses sidebar data and rejects superseded account
   const store = new SettingsStore(directory);
   const draft = { label: "Pool", baseUrl: "https://cpa.example.invalid", password: "synthetic-value" };
   store.save(draft);
-  store.preferences({ claude: { enabled: true, providerId: "claude" } });
+  store.save({ ...draft, label: "Another pool", baseUrl: "https://another.keeper.invalid" });
+  store.preferences({ claude: { enabled: true, providerId: "my-custom-claude" } });
   let reads = 0;
   const usage = new UsageService(store, () => ({
     test: () => assert.fail(),
@@ -26,23 +27,31 @@ test("native global discovery reuses sidebar data and rejects superseded account
     },
   }));
   const sources: UsageSourceRegistration[] = [];
-  registerUsage({ registerUsageSource: source => sources.push(source) }, usage);
+  registerUsage({ registerUsageSource: source => sources.push(source) }, usage.sources);
   const [cpa, claude] = sources;
+  assert.deepEqual(sources.map(source => source.label), ["Codex", "Claude"]);
   for (const source of sources) {
     assert.deepEqual(await source.discover({ kind: "session", provider: "claude", env: {} }), []);
   }
   assert.equal(reads, 0);
-  const [account] = await cpa.discover({ kind: "global" });
+  const [account, other] = await cpa.discover({ kind: "global" });
+  assert.equal(other.label, account.label);
+  assert.notEqual(other.key, account.key);
   assert.doesNotMatch(JSON.stringify(account.input), /cpa\.example|synthetic-value/);
+  assert.equal(account.label, "Account");
   const report = await cpa.fetch(account.input);
   assert.equal(report.status, "available");
   if (report.status === "available") assert.equal(report.windows[0].remainingPct, 77);
   await usage.overview();
-  assert.equal(reads, 1);
+  assert.equal(reads, 2);
   store.save({ ...draft, id: store.instances[0].id, password: "synthetic-replacement" });
   usage.prune();
   assert.equal((await cpa.fetch(account.input)).status, "unavailable");
+  assert.equal((await cpa.fetch(other.input)).status, "available");
   const [login] = await claude.discover({ kind: "global" });
+  assert.equal(login.label, undefined);
+  assert.ok(!JSON.stringify(login).includes("my-custom-claude"));
+  assert.ok(!JSON.stringify(await usage.overview()).includes("my-custom-claude"));
   store.preferences({ claude: { enabled: true, providerId: "different-login" } });
   assert.equal((await claude.fetch(login.input)).status, "unavailable");
 });

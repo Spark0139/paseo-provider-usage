@@ -26,17 +26,17 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
     }), options.now);
   const collector = registerClaude(server, {
     directory: store.directory, settings: () => store.claude,
-    ingest: (windows, observedAt) => usage.ingest(windows, observedAt),
+    ingest: (windows, observedAt) => usage.claude.ingest(windows, observedAt),
   });
-  const settings = () => store.view(usage.claudeSnapshot().lastSuccessAt);
-  registerUsage(server, usage);
+  const settings = () => store.view(usage.claude.snapshot().lastSuccessAt);
+  registerUsage(server, usage.sources);
   server.handle(settingsRpc, settings);
   server.handle(saveInstanceRpc, draft => {
     store.save(draft);
     usage.prune();
     return settings();
   });
-  server.handle(testInstanceRpc, async draft => ({ count: await usage.testInstance(draft) }));
+  server.handle(testInstanceRpc, async draft => ({ count: await usage.keeper.testInstance(draft) }));
   server.handle(deleteInstanceRpc, ({ id }) => {
     store.remove(id);
     usage.prune();
@@ -47,7 +47,7 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
     usage.prune();
     return settings();
   });
-  server.handle(refreshKeeperRpc, ({ id }) => usage.requestRefresh(id));
+  server.handle(refreshKeeperRpc, ({ id }) => usage.keeper.requestRefresh(id));
   server.handle(preferencesRpc, input => {
     const previous = store.claude;
     store.preferences(input);
@@ -64,6 +64,6 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
   });
   return () => {
     collector.dispose();
-    usage.dispose();
+    usage.keeper.dispose();
   };
 }

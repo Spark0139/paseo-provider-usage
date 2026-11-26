@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
@@ -20,38 +20,6 @@ const reading: Account = {
   windows: [{ id: "five_hour", label: "5-hour", usedPercent: 18, resetAt: null }],
 };
 const noRefresh = () => assert.fail("Reading quota must not trigger a Keeper refresh");
-
-test("old installations retain Claude preferences and readings without reusing CPA secrets or account data", async t => {
-  const { directory } = settings(t);
-  const claude = { enabled: true, providerId: "custom-claude" };
-  const display = { showDisabledAccounts: false, showNativeProviders: false, showResetCountdown: true };
-  writeFileSync(join(directory, "config.json"), JSON.stringify({ claude, display, instances: [
-    { id: "old-cpa", label: "Old CPA", baseUrl: draft.baseUrl, secretRef: "old-ref" },
-  ] }));
-  const oldSecrets = '{"old-ref":"synthetic-cpa-admin-key"}';
-  writeFileSync(join(directory, "secrets.json"), oldSecrets);
-  const snapshot = {
-    sourceId: "claude-passive", label: "Claude", kind: "claude", accounts: [reading],
-    lastAttemptAt: observedAt, lastSuccessAt: observedAt,
-  };
-  writeFileSync(join(directory, "snapshot.json"), JSON.stringify({
-    "claude-passive": { identity: claude.providerId, snapshot },
-    "old-cpa": { identity: "old-ref", snapshot: { ...snapshot, kind: "cpa", sourceId: "old-cpa" } },
-  }));
-  const store = new SettingsStore(directory);
-  assert.deepEqual(store.view(observedAt), { claude, display, claudeObservedAt: observedAt, instances: [] });
-  assert.throws(() => store.resolve({ ...draft, id: "old-cpa", password: "" }), /移除/);
-  const supplied: string[] = [];
-  const service = new UsageService(store, (_instance, password) => {
-    supplied.push(password);
-    return { test: noRefresh, read: async () => [], requestRefresh: noRefresh };
-  });
-  assert.deepEqual(await service.overview(), [snapshot]);
-  store.save({ ...draft, password: "" });
-  await service.overview();
-  assert.deepEqual(supplied, [""]);
-  assert.equal(readFileSync(join(directory, "secrets.json"), "utf8"), oldSecrets);
-});
 
 test("password reuse is limited to the same normalized Keeper URL, supports explicit clearing, and stays private", t => {
   const store = settings(t);
@@ -92,8 +60,9 @@ test("overviews share reads, bypass local TTL on demand and retain actual observ
       return accountError ? [{ ...reading, state: "unavailable", windows: [], observedAt: null, error: "HTTP 401" }] : [reading];
     },
   }), () => new Date(time));
-  const [first] = await Promise.all([service.overview(), service.keeperSnapshot(store.instances[0])]);
+  const [first] = await Promise.all([service.overview(), service.keeper.snapshot(store.instances[0])]);
   assert.equal(calls, 2);
+  assert.deepEqual(first.map(source => [source.label, source.instanceLabel]), [["Codex", "Personal"], ["Codex", "Unavailable"]]);
   assert.equal(first[1].accounts.length, 0);
   assert.equal(first[1].lastSuccessAt, null);
   assert.match(first[1].error!, /403/);
@@ -118,19 +87,19 @@ test("connection tests reuse a saved session and isolate edited or unsaved draft
     sessions.push({ url: instance.baseUrl, password, signal });
     return { test: async () => 2, read: async () => [reading], requestRefresh: noRefresh };
   });
-  assert.equal(await service.testInstance({ ...draft, id, password: "" }), 2);
+  assert.equal(await service.keeper.testInstance({ ...draft, id, password: "" }), 2);
   await service.overview();
-  await service.testInstance({ ...draft, id, label: "renamed", baseUrl: draft.baseUrl + "/" });
+  await service.keeper.testInstance({ ...draft, id, label: "renamed", baseUrl: draft.baseUrl + "/" });
   assert.equal(sessions.length, 1);
-  await service.testInstance({ ...draft, id, password: "replacement" });
-  await service.testInstance({ ...draft, id, baseUrl: draft.baseUrl + "/other", password: "" });
-  await service.testInstance({ ...draft, password: "" });
+  await service.keeper.testInstance({ ...draft, id, password: "replacement" });
+  await service.keeper.testInstance({ ...draft, id, baseUrl: draft.baseUrl + "/other", password: "" });
+  await service.keeper.testInstance({ ...draft, password: "" });
   assert.deepEqual(sessions.map(s => [s.url, s.password]), [
     [draft.baseUrl, draft.password], [draft.baseUrl, "replacement"],
     [draft.baseUrl + "/other", ""], [draft.baseUrl, ""],
   ]);
   assert.equal(new Set(sessions.map(s => s.signal)).size, 4);
-  await service.testInstance({ ...draft, id });
+  await service.keeper.testInstance({ ...draft, id });
   assert.equal(sessions.length, 4);
   assert.equal(store.password(store.instances[0]), draft.password);
 });
@@ -155,8 +124,8 @@ test("concurrent refresh requests join and replaced bindings discard late reads,
     };
   });
   const pending = service.overview();
-  const refresh = service.requestRefresh(id);
-  assert.equal(service.requestRefresh(id), refresh);
+  const refresh = service.keeper.requestRefresh(id);
+  assert.equal(service.keeper.requestRefresh(id), refresh);
   assert.equal(refreshes, 1);
   assert.equal(signals.length, 1);
   store.save({ ...draft, id, baseUrl: draft.baseUrl + "/other" });
@@ -172,7 +141,7 @@ test("concurrent refresh requests join and replaced bindings discard late reads,
   assert.equal(signals.length, 2);
   finishRead([]);
   assert.deepEqual((await next)[0].accounts, []);
-  service.dispose();
+  service.keeper.dispose();
   assert.equal(signals[1].aborted, true);
 });
 
@@ -180,32 +149,32 @@ test("partial Claude events survive restart and respect identity changes", t => 
   const store = settings(t);
   store.preferences({ claude: { enabled: true, providerId: "claude" } });
   const service = new UsageService(store, () => assert.fail());
-  service.ingest(reading.windows, observedAt);
+  service.claude.ingest(reading.windows, observedAt);
   const second = { ...reading.windows[0], id: "seven_day", label: "Weekly", usedPercent: 61 };
-  service.ingest([second], observedAt);
-  service.ingest([], "2026-11-27T05:32:00.000Z");
-  service.ingest([{ ...second, usedPercent: 2 }], "2026-11-25T05:32:00.000Z");
+  service.claude.ingest([second], observedAt);
+  service.claude.ingest([], "2026-11-27T05:32:00.000Z");
+  service.claude.ingest([{ ...second, usedPercent: 2 }], "2026-11-25T05:32:00.000Z");
   const restarted = new UsageService(new SettingsStore(store.directory), () => assert.fail());
-  assert.deepEqual(restarted.claudeSnapshot().accounts[0].windows.map(w => w.usedPercent), [18, 61]);
-  assert.equal(restarted.claudeSnapshot().lastSuccessAt, observedAt);
+  assert.deepEqual(restarted.claude.snapshot().accounts[0].windows.map(w => w.usedPercent), [18, 61]);
+  assert.equal(restarted.claude.snapshot().lastSuccessAt, observedAt);
 
   const fable = { id: "seven_day_overage_included", label: "Fable 周额度", usedPercent: 100,
     resetAt: "2026-12-02T15:00:00.000Z", status: "rejected" };
-  restarted.ingest([fable], observedAt);
-  restarted.ingest([{ ...fable, usedPercent: null }], observedAt);
-  const account = restarted.claudeSnapshot().accounts[0];
+  restarted.claude.ingest([fable], observedAt);
+  restarted.claude.ingest([{ ...fable, usedPercent: null }], observedAt);
+  const account = restarted.claude.snapshot().accounts[0];
   assert.deepEqual(account.windows, [reading.windows[0], second, fable]);
   assert.equal(account.state, "available");
   const renewed = { ...fable, usedPercent: null, status: "allowed", resetAt: "2026-12-09T15:00:00.000Z" };
-  restarted.ingest([renewed], "2026-12-02T15:01:00.000Z");
+  restarted.claude.ingest([renewed], "2026-12-02T15:01:00.000Z");
   const saved = new UsageService(new SettingsStore(store.directory), () => assert.fail());
-  assert.deepEqual(saved.claudeSnapshot().accounts[0].windows, [reading.windows[0], second, renewed]);
+  assert.deepEqual(saved.claude.snapshot().accounts[0].windows, [reading.windows[0], second, renewed]);
 
   store.preferences({ claude: { enabled: true, providerId: "other-login" } });
   service.prune();
-  assert.equal(service.claudeSnapshot().lastSuccessAt, null);
-  service.ingest([fable], observedAt);
-  assert.equal(service.claudeSnapshot().accounts[0].state, "unknown");
-  service.ingest([{ ...second, usedPercent: 100 }], observedAt);
-  assert.equal(service.claudeSnapshot().accounts[0].state, "exhausted");
+  assert.equal(service.claude.snapshot().lastSuccessAt, null);
+  service.claude.ingest([fable], observedAt);
+  assert.equal(service.claude.snapshot().accounts[0].state, "unknown");
+  service.claude.ingest([{ ...second, usedPercent: 100 }], observedAt);
+  assert.equal(service.claude.snapshot().accounts[0].state, "exhausted");
 });

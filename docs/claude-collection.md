@@ -1,6 +1,6 @@
 # Observe Claude Code quota
 
-Enable **Claude collection** in Provider Usage and enter the exact ID of the Claude provider whose login you want to track. One provider and one login supply the shared global quota.
+In **设置 → Claude**, use **关联 Provider → 编辑** to enter the Claude provider ID, then enable **采集额度**. One provider and one login supply the shared global quota.
 
 On the daemon, find this plugin's installation directory with `paseo plugin ls paseo-provider-usage`. In that Claude provider's Paseo configuration, put the absolute Node.js executable and the plugin's launcher before your existing command. Preserve all existing launcher arguments and provider environment settings. For example, an existing `reclaude` provider could use this command array.
 
