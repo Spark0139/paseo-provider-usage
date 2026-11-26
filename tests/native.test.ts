@@ -1,0 +1,43 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { test } from "node:test";
+import type { UsageSourceRegistration } from "@getpaseo/plugin/server/usage";
+import { registerUsage } from "../server/paseo/usage";
+import { SettingsStore } from "../server/storage/store";
+import { UsageService } from "../server/usage/service";
+
+test("native global discovery reuses sidebar data and rejects superseded account bindings", async t => {
+  const directory = mkdtempSync(join(tmpdir(), "native-usage-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const store = new SettingsStore(directory);
+  const draft = { label: "Pool", baseUrl: "https://cpa.example.invalid", key: "synthetic-value" };
+  store.save(draft);
+  store.preferences({ claude: { enabled: true, providerId: "claude" } });
+  let reads = 0;
+  const usage = new UsageService(store, async () => {
+    reads++;
+    return [{ id: "demo", label: "Account", enabled: true, state: "available", observedAt: "2026-11-26T00:00:00Z",
+      windows: [{ id: "five_hour", label: "5-hour", usedPercent: 23, resetAt: null }] }];
+  });
+  const sources: UsageSourceRegistration[] = [];
+  registerUsage({ registerUsageSource: source => sources.push(source) }, usage);
+  const [cpa, claude] = sources;
+  for (const source of sources) {
+    assert.deepEqual(await source.discover({ kind: "session", provider: "claude", env: {} }), []);
+  }
+  const [account] = await cpa.discover({ kind: "global" });
+  assert.doesNotMatch(JSON.stringify(account.input), /cpa\.example|synthetic-value/);
+  const report = await cpa.fetch(account.input);
+  assert.equal(report.status, "available");
+  if (report.status === "available") assert.equal(report.windows[0].remainingPct, 77);
+  await usage.overview();
+  assert.equal(reads, 1);
+  store.save({ ...draft, id: store.instances[0].id, key: "synthetic-replacement" });
+  usage.prune();
+  assert.equal((await cpa.fetch(account.input)).status, "unavailable");
+  const [login] = await claude.discover({ kind: "global" });
+  store.preferences({ claude: { enabled: true, providerId: "different-login" } });
+  assert.equal((await claude.fetch(login.input)).status, "unavailable");
+});
