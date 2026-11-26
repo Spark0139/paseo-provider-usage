@@ -2,11 +2,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { antigravitySnapshot } from "./client/usage";
 import { registerPlugin } from "./server/paseo/plugin";
 import { parseClaudeWindows } from "./server/sources/claude";
 import { SettingsStore } from "./server/storage/store";
 import { UsageService } from "./server/usage/service";
+import { antigravitySnapshot } from "./shared/native-usage";
 
 export default function contribute(server: PluginServerContext) {
   const directory = join(process.env.PASEO_HOME!, "provider-usage-mock");
