@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { KeeperRefreshResult } from "../../shared/contracts";
 import type { KeeperInstance } from "../../shared/types";
 import { accountFromCache, cacheItems, codexIdentities } from "./keeper-quota";
 
@@ -10,8 +11,16 @@ const refreshResponse = z.object({
   accepted: z.number().int().nonnegative(), skipped: z.number().int().nonnegative(), limit: z.number().int().nonnegative(),
 });
 
+const taskResponse = z.object({ authIndex: z.string(), status: z.enum(["queued", "running", "completed", "failed"]) });
+export type TaskStatus = z.infer<typeof taskResponse>["status"] | "missing";
+export type KeeperSubmission = KeeperRefreshResult & { indexes: string[] };
+
+export class KeeperHttpError extends Error {
+  constructor(readonly status: number, message: string, readonly retryAt = 0) { super(message); }
+}
+
 type Session = { cookie: string; expiresAt: number };
-type Path = "/auth/login" | "/usage/identities" | "/quota/cache" | "/quota/refresh";
+type Path = "/auth/login" | "/usage/identities" | "/quota/cache" | "/quota/refresh" | `/quota/refresh/${string}`;
 
 function sessionCookie(headers: Headers, secure: boolean): Session | null {
   const raw = headers.getSetCookie().find(value => value.startsWith(sessionName + "="));
@@ -35,9 +44,11 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
   const send = options.fetch ?? fetch;
   const base = instance.baseUrl.replace(/\/+$/, "") + "/api/v1";
   let session: Session | null = null;
+  let retryAt = 0;
   let loginPending: Promise<Session | null> | undefined;
 
   async function exchange(path: Path, bound: Session | null, body?: object) {
+    if (Date.now() < retryAt) throw new KeeperHttpError(429, "Keeper 请求受限，稍后重试（HTTP 429）。", retryAt);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
@@ -48,6 +59,11 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
         redirect: "manual", signal: controller.signal,
       });
       const { status, headers } = response;
+      if (status === 429) {
+        const raw = headers.get("retry-after")?.trim();
+        const until = raw && /^\d+$/.test(raw) ? Date.now() + Number(raw) * 1000 : Date.parse(raw ?? "");
+        retryAt = Math.max(retryAt, Number.isFinite(until) ? until : Date.now() + 60_000);
+      }
       if (!response.ok || path === "/auth/login") {
         await response.body?.cancel();
         return { status, headers, data: undefined };
@@ -62,7 +78,7 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
 
   async function login() {
     const { status, headers } = await exchange("/auth/login", null, { password });
-    if (status !== 204) throw new Error(`Keeper 登录失败（HTTP ${status}）。`);
+    if (status !== 204) throw new KeeperHttpError(status, `Keeper 登录失败（HTTP ${status}）。`, retryAt);
     session = sessionCookie(headers, new URL(base).protocol === "https:");
     return session;
   }
@@ -72,7 +88,7 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
     const used = currentSession();
     let response = await exchange(path, used, body);
     if (response.status === 401) {
-      if (!password) throw new Error("Keeper 需要登录密码（HTTP 401）。");
+      if (!password) throw new KeeperHttpError(401, "Keeper 需要登录密码（HTTP 401）。");
       if (session === used) session = null;
       let replacement = currentSession();
       if (!replacement) {
@@ -81,7 +97,7 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
       }
       response = await exchange(path, replacement, body);
     }
-    if (response.status < 200 || response.status >= 300) throw new Error(`Keeper 请求失败（HTTP ${response.status}）。`);
+    if (response.status < 200 || response.status >= 300) throw new KeeperHttpError(response.status, `Keeper 请求失败（HTTP ${response.status}）。`, retryAt);
     return response.data;
   }
 
@@ -97,10 +113,10 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
       return identities.map(item => accountFromCache(item, cache.get(item.identity)));
     },
 
-    async requestRefresh() {
+    async requestRefresh(): Promise<KeeperSubmission> {
       const identities = await discover();
       const indexes = new Set(identities.filter(item => item.disabled === false && item.identity).map(item => item.identity));
-      if (!indexes.size) return { queued: 0, pending: 0, failed: 0 };
+      if (!indexes.size) return { queued: 0, pending: 0, failed: 0, indexes: [] };
       const parsed = refreshResponse.safeParse(await request("/quota/refresh", { auth_indexes: [...indexes] }));
       if (!parsed.success) throw new Error("Keeper 返回的更新任务结果无效。");
       const { tasks, rejected, limit, accepted, skipped } = parsed.data;
@@ -110,8 +126,23 @@ export function createKeeperClient(instance: KeeperInstance, password: string, o
         throw new Error("Keeper 返回的更新任务结果无效。");
       }
       // Unsupported credentials may be skipped without a rejected row.
-      const pending = (rejected ?? []).filter(item => item.error === "duplicate").length;
-      return { queued: accepted, pending, failed: skipped - pending };
+      const duplicate = (rejected ?? []).filter(item => item.error === "duplicate");
+      const tracked = [...(tasks ?? []), ...duplicate].map(item => item.authIndex);
+      return { queued: accepted, pending: duplicate.length, failed: skipped - duplicate.length, indexes: tracked };
+    },
+
+    async taskStatus(index: string): Promise<TaskStatus> {
+      // Dot segments are normalized by URL parsers, even when the dots are percent-encoded.
+      if (index === "." || index === "..") return "missing";
+      try {
+        const data = await request(`/quota/refresh/${encodeURIComponent(index)}`);
+        const result = taskResponse.safeParse(data);
+        if (!result.success || result.data.authIndex !== index) throw new Error("Keeper 返回的任务状态无效。");
+        return result.data.status;
+      } catch (error) {
+        if (error instanceof KeeperHttpError && error.status === 404) return "missing";
+        throw error;
+      }
     },
   };
 }

@@ -1,6 +1,6 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import {
-  clearSecretRpc, deleteInstanceRpc, overviewRpc, preferencesRpc, refreshKeeperRpc, saveInstanceRpc, settingsRpc, testInstanceRpc,
+  claudeDiagnosticsRpc, clearSecretRpc, deleteInstanceRpc, keeperRefreshStatusRpc, overviewRpc, preferencesRpc, refreshKeeperRpc, saveInstanceRpc, settingsRpc, testInstanceRpc,
 } from "../../shared/contracts";
 import type { SourceSnapshot } from "../../shared/types";
 import { SettingsStore } from "../storage/store";
@@ -8,6 +8,7 @@ import { UsageService } from "../usage/service";
 import { createKeeperClient } from "../sources/keeper";
 import { registerClaude } from "../sources/claude";
 import { registerUsage } from "./usage";
+import { claudeProviderSetup } from "./claude-config";
 
 export function registerPlugin(server: PluginServerContext, store: SettingsStore, options: {
   fetch?: typeof fetch;
@@ -31,6 +32,12 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
   const settings = () => store.view(usage.claude.snapshot().lastSuccessAt);
   registerUsage(server, usage.sources);
   server.handle(settingsRpc, settings);
+  server.handle(claudeDiagnosticsRpc, async (_input, { paseo }) => {
+    const setup = await paseo.config.get()
+      .then(({ config }) => claudeProviderSetup(config.providers, store.claude.providerId))
+      .catch(() => ({ providers: [], launcher: "unknown" as const }));
+    return { ...setup, stage: collector.stage(), observedAt: usage.claude.snapshot().lastSuccessAt };
+  });
   server.handle(saveInstanceRpc, draft => {
     store.save(draft);
     usage.prune();
@@ -47,6 +54,7 @@ export function registerPlugin(server: PluginServerContext, store: SettingsStore
     usage.prune();
     return settings();
   });
+  server.handle(keeperRefreshStatusRpc, ({ id }) => usage.keeper.refreshStatus(id));
   server.handle(refreshKeeperRpc, ({ id }) => usage.keeper.requestRefresh(id));
   server.handle(preferencesRpc, input => {
     const previous = store.claude;

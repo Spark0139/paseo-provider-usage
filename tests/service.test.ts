@@ -53,7 +53,7 @@ test("overviews share reads, bypass local TTL on demand and retain actual observ
   let calls = 0;
   let accountError = false;
   const service = new UsageService(store, instance => ({
-    test: noRefresh, requestRefresh: noRefresh,
+    test: noRefresh, taskStatus: noRefresh, requestRefresh: noRefresh,
     read: async () => {
       calls++;
       if (instance.label === "Unavailable") throw new Error("Keeper returned HTTP 403.");
@@ -85,7 +85,7 @@ test("connection tests reuse a saved session and isolate edited or unsaved draft
   const sessions: { url: string; password: string; signal: AbortSignal }[] = [];
   const service = new UsageService(store, (instance, password, signal) => {
     sessions.push({ url: instance.baseUrl, password, signal });
-    return { test: async () => 2, read: async () => [reading], requestRefresh: noRefresh };
+    return { test: async () => 2, read: async () => [reading], taskStatus: noRefresh, requestRefresh: noRefresh };
   });
   assert.equal(await service.keeper.testInstance({ ...draft, id, password: "" }), 2);
   await service.overview();
@@ -117,9 +117,10 @@ test("concurrent refresh requests join and replaced bindings discard late reads,
     return {
       test: noRefresh,
       read: () => new Promise(resolve => { finishRead = resolve; }),
+      taskStatus: noRefresh,
       requestRefresh: () => {
         refreshes++;
-        return new Promise(resolve => { finishRefresh = () => resolve({ queued: 1, pending: 0, failed: 0 }); });
+        return new Promise(resolve => { finishRefresh = () => resolve({ queued: 1, pending: 0, failed: 0, indexes: ["demo"] }); });
       },
     };
   });
@@ -177,4 +178,114 @@ test("partial Claude events survive restart and respect identity changes", t => 
   assert.equal(service.claude.snapshot().accounts[0].state, "unknown");
   service.claude.ingest([{ ...second, usedPercent: 100 }], observedAt);
   assert.equal(service.claude.snapshot().accounts[0].state, "exhausted");
+});
+
+test("one explicit submission follows new and existing work, then refreshes only that instance's cache", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse(observedAt) });
+  const store = settings(t);
+  store.save(draft);
+  store.save({ ...draft, baseUrl: "https://second.example.invalid", label: "Second" });
+  const [instance, other] = store.instances;
+  let submitted = 0;
+  let checked = 0;
+  let version = 1;
+  const reads: string[] = [];
+  const service = new UsageService(store, ({ id }) => ({
+    test: () => assert.fail(),
+    async read() {
+      reads.push(id);
+      return [{ ...reading, windows: [{ ...reading.windows[0], usedPercent: version }] }];
+    },
+    async requestRefresh() {
+      submitted++;
+      return { queued: 1, pending: 1, failed: 1, indexes: ["new", "existing"] };
+    },
+    async taskStatus(index) {
+      checked++;
+      return checked === 1 ? "running" : index === "new" ? "completed" : "failed";
+    },
+  }));
+  await service.overview();
+  assert.deepEqual(service.keeper.refreshStatus(instance.id), { phase: "idle", completed: 0, failed: 0, remaining: 0 });
+  const receipt = { queued: 1, pending: 1, failed: 1 };
+  assert.deepEqual(await service.keeper.requestRefresh(instance.id), receipt);
+  assert.deepEqual(await service.keeper.requestRefresh(instance.id), receipt);
+  assert.equal(service.keeper.refreshStatus(instance.id).phase, "pending");
+  assert.equal(service.keeper.refreshStatus(instance.id).phase, "pending");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(service.keeper.refreshStatus(instance.id), { phase: "pending", completed: 0, failed: 2, remaining: 1 });
+  assert.equal(checked, 2);
+  t.mock.timers.tick(4_000);
+  assert.equal(checked, 2); // No observer, no timer or Keeper traffic.
+  version = 2;
+  service.keeper.refreshStatus(instance.id);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(service.keeper.refreshStatus(instance.id), { phase: "completed", completed: 1, failed: 2, remaining: 0 });
+  assert.equal(submitted, 1);
+  assert.equal(checked, 3);
+  const [first, second] = await service.overview();
+  assert.equal(first.accounts[0].windows[0].usedPercent, 2);
+  assert.equal(second.accounts[0].windows[0].usedPercent, 1);
+  assert.deepEqual(reads, [instance.id, other.id, instance.id]);
+});
+
+test("task checks back off, distinguish a lost task from failure and preserve the last successful reading", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse(observedAt) });
+  const store = settings(t);
+  store.save(draft);
+  const [{ id }] = store.instances;
+  let checks = 0;
+  const service = new UsageService(store, () => ({
+    test: noRefresh,
+    async requestRefresh() { return { queued: 1, pending: 0, failed: 0, indexes: ["one"] }; },
+    async taskStatus() {
+      if (!checks++) throw new Error("Keeper 请求失败（HTTP 503）。");
+      return "missing";
+    },
+    async read() { return [checks ? { ...reading, windows: [], observedAt: null } : reading]; },
+  }));
+  await service.overview();
+  await service.keeper.requestRefresh(id);
+  service.keeper.refreshStatus(id);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  t.mock.timers.tick(4_000);
+  const pending = service.keeper.refreshStatus(id);
+  assert.equal(pending.phase, "pending");
+  assert.match(pending.error!, /503/);
+  assert.equal(checks, 1);
+  t.mock.timers.tick(8_000);
+  service.keeper.refreshStatus(id);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const end = service.keeper.refreshStatus(id);
+  assert.deepEqual([end.phase, end.remaining, end.failed], ["unconfirmed", 1, 0]);
+  const [snapshot] = await service.overview();
+  assert.deepEqual(snapshot.accounts[0].windows, reading.windows);
+  assert.equal(snapshot.accounts[0].observedAt, observedAt);
+});
+
+test("checks at most four waiting tasks per pass, rotates fairly and stops when the observation period expires", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse(observedAt) });
+  const store = settings(t);
+  store.save(draft);
+  const [{ id }] = store.instances;
+  const indexes = Array.from({ length: 6 }, (_, i) => String(i + 1));
+  const checked: string[] = [];
+  const service = new UsageService(store, () => ({
+    read: async () => [], test: noRefresh,
+    async requestRefresh() { return { queued: 6, pending: 0, failed: 0, indexes }; },
+    async taskStatus(index) { checked.push(index); return "queued"; },
+  }));
+  await service.keeper.requestRefresh(id);
+  service.keeper.refreshStatus(id);
+  assert.deepEqual(checked, ["1", "2", "3", "4"]);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  t.mock.timers.tick(4_000);
+  service.keeper.refreshStatus(id);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(checked.slice(4), ["5", "6", "1", "2"]);
+  t.mock.timers.tick(20 * 60_000);
+  service.keeper.refreshStatus(id);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const final = service.keeper.refreshStatus(id);
+  assert.deepEqual([final.phase, final.remaining, checked.length], ["unconfirmed", 6, 8]);
 });

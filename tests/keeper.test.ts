@@ -101,10 +101,10 @@ test("manual refresh only queues current enabled Codex credentials and distingui
     assert.deepEqual(JSON.parse(String(init?.body)), { auth_indexes: ["demo-pro", "demo-plus"] });
     return Response.json(refresh);
   } });
-  assert.deepEqual(await client.requestRefresh(), { queued: 1, pending: 1, failed: 0 });
+  assert.deepEqual(await client.requestRefresh(), { queued: 1, pending: 1, failed: 0, indexes: ["demo-pro", "demo-plus"] });
   assert.deepEqual(paths, [prefix + "/usage/identities", prefix + "/quota/refresh"]);
   refresh = { limit: 2, accepted: 0, skipped: 2, tasks: null, rejected: [{ authIndex: "demo-plus", error: "not_found" }] };
-  assert.deepEqual(await client.requestRefresh(), { queued: 0, pending: 0, failed: 2 });
+  assert.deepEqual(await client.requestRefresh(), { queued: 0, pending: 0, failed: 2, indexes: [] });
 });
 
 test("cache failures, mismatched nested IDs and missing readings never create observations", async () => {
@@ -133,7 +133,7 @@ test("expired failed observations and absent enablement stay unknown; empty sele
   } });
   const [account] = await client.read();
   assert.deepEqual([account.enabled, account.state, account.observedAt, account.error], [null, "unknown", null, undefined]);
-  assert.deepEqual(await client.requestRefresh(), { queued: 0, pending: 0, failed: 0 });
+  assert.deepEqual(await client.requestRefresh(), { queued: 0, pending: 0, failed: 0, indexes: [] });
   assert.ok(!calls.some(url => url.endsWith("/refresh")));
 });
 
@@ -175,4 +175,40 @@ test("renaming a Keeper credential preserves its native report locator", async (
   assert.ok(!JSON.stringify(anonymous).includes(entry.identity));
   entry.id = "999";
   assert.notEqual((await client.read())[0].id, before.id);
+});
+
+test("task checks use GET, validate the credential index and expose no raw Keeper payload", async () => {
+  let raw: unknown = { ...fixture("task"), authIndex: "demo +/synthetic" };
+  let status = 200;
+  const client = createKeeperClient(instance, "", { fetch: async (url, init) => {
+    assert.equal(url, prefix + "/quota/refresh/demo%20%2B%2Fsynthetic");
+    assert.equal(init?.method, "GET");
+    assert.equal(init?.body, undefined);
+    return Response.json(raw, { status });
+  } });
+  assert.equal(await client.taskStatus("demo +/synthetic"), "running");
+  raw = { authIndex: "demo +/synthetic", status: "failed", error: "raw-secret", http_status_code: 429 };
+  assert.equal(await client.taskStatus("demo +/synthetic"), "failed");
+  raw = { authIndex: "wrong", status: "completed", quota: {} };
+  await assert.rejects(client.taskStatus("demo +/synthetic"), /任务状态无效/);
+  status = 404;
+  assert.equal(await client.taskStatus("demo +/synthetic"), "missing");
+});
+
+test("Keeper HTTP 429 blocks subsequent reads and submissions for Retry-After", async t => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  let calls = 0;
+  const client = createKeeperClient(instance, "", { fetch: async () => {
+    calls++;
+    if (calls === 1) return new Response(null, { status: 429, headers: { "Retry-After": "42" } });
+    return Response.json(identities);
+  } });
+  await assert.rejects(client.test(), /429/);
+  await assert.rejects(client.requestRefresh(), /429/);
+  t.mock.timers.tick(41_999);
+  await assert.rejects(client.test(), /429/);
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1);
+  assert.equal(await client.test(), 3);
+  assert.equal(calls, 2);
 });

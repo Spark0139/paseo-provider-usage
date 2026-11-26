@@ -22,10 +22,10 @@ function AccountState({ account, keeper, theme }: { account: Account; keeper: bo
 }
 
 type AccountProps = RowProps & {
-  account: Account; kind: SourceSnapshot["kind"]; sourceLabel: string; initialOpen: boolean; singleReport: boolean;
+  conciseErrors?: boolean; account: Account; kind: SourceSnapshot["kind"]; sourceLabel: string; initialOpen: boolean; singleReport: boolean;
 };
 
-export function AccountRows({ account, kind, sourceLabel, initialOpen, singleReport, ...row }: AccountProps) {
+export function AccountRows({ conciseErrors, account, kind, sourceLabel, initialOpen, singleReport, ...row }: AccountProps) {
   const [expanded, setExpanded] = useState<boolean | null>(null);
   const { theme, compact, now } = row;
   const c = theme.colors;
@@ -51,7 +51,7 @@ export function AccountRows({ account, kind, sourceLabel, initialOpen, singleRep
           </Text>}
         </View>
       </Pressable>}
-    {account.error && <Text style={{ color: c.statusWarning, fontSize: 13, paddingVertical: 3 }}>{account.error}</Text>}
+    {account.error && <Text style={{ color: c.statusWarning, fontSize: 13, paddingVertical: 3 }}>{conciseErrors ? (/HTTP (401|403)\b/.test(account.error) ? "账号认证失败" : "账号额度读取失败") : account.error}</Text>}
     {open && <View style={{ gap: compact ? 8 : 12 }}>
       {windows.length > 0 && <ReadingGroups windows={windows} {...row} />}
       {!windows.length && !account.error && <Text style={{ color: c.foregroundMuted, fontSize: 13 }}>

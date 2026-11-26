@@ -2,6 +2,7 @@ import type { PluginClientContext, PluginScreenProps, PluginSidebarItemProps } f
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { Overview } from "./client/overview";
 import { Settings } from "./client/settings";
+import { contributeComposerPills } from "./client/composer-pills";
 
 // Sidebar-to-screen registration adapted from Paseo Usage Monitor.
 function UsageItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
@@ -9,11 +10,12 @@ function UsageItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
     onPress={() => openScreen({ screenId: "usage" })} />;
 }
 export default function contribute(client: PluginClientContext) {
+  const pills = contributeComposerPills(client);
   function UsageScreen(props: PluginScreenProps) {
     return <Overview key={props.host.id} {...props} openSettings={() => client.openSettings("settings")} />;
   }
   client.addScreen({ id: "usage", title: "Provider Usage", Component: UsageScreen });
   client.addSidebarHeaderItem({ id: "usage", title: "Provider Usage", Component: UsageItem });
-  client.addSettingsScreen({ id: "settings", title: "Provider Usage", icon: "Settings2", Component: Settings });
-  return () => {};
+  client.addSettingsScreen({ id: "settings", title: "Provider Usage", icon: "Settings2", Component: props => <Settings {...props} onSaved={pills.onSettings} /> });
+  return pills.dispose;
 }

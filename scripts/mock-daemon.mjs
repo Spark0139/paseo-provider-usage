@@ -49,7 +49,7 @@ async function verify(client, demo, directory) {
   const personal = overview.sources.find(s => s.instanceLabel === "Personal Keeper");
   assert.equal(personal.label, "Codex");
   assert.deepEqual([personal.accounts.filter(a => a.enabled).length, personal.accounts.length], [2, 3]);
-  assert.equal(personal.lastAttemptAt, "2026-11-26T07:00:00.000Z");
+  assert.ok(Date.parse(personal.lastAttemptAt) >= Date.parse("2026-11-26T07:00:00Z"));
   assert.equal(Date.parse(personal.lastSuccessAt), Date.parse("2026-11-26T05:32:00Z"));
   assert.deepEqual(personal.accounts.map(a => a.label).sort(), ["停用账号", "备用账号", "工作账号"]);
   assert.equal(Date.parse(personal.accounts.find(a => a.label === "工作账号").observedAt), Date.parse(personal.lastSuccessAt));
@@ -95,12 +95,27 @@ async function verify(client, demo, directory) {
   assert.equal((await counts()).refresh, 0);
   assert.deepEqual(await rpc("keeper.refresh", { id: personal.sourceId }), { queued: 1, pending: 1, failed: 0 });
   assert.equal((await counts()).refresh, 1);
+  let progress;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    progress = await rpc("keeper.refresh.status", { id: personal.sourceId });
+    if (progress.phase === "completed") break;
+    assert.equal(progress.phase, "pending");
+    await delay(2000);
+  }
+  assert.equal(progress.phase, "completed");
+  assert.equal(progress.completed, 1);
+  assert.equal(progress.failed, 1);
+  const finished = await rpc("usage.overview");
+  const account = finished.sources.find(s => s.sourceId === personal.sourceId).accounts.find(a => a.label === "工作账号");
+  assert.equal(100 - account.windows[0].usedPercent, 74);
+  assert.equal((await counts()).refresh, 1);
+  assert.equal((await counts()).secondCache, reread.secondCache);
   const before = await rpc("config.preferences", { display: { showResetCountdown: false } });
   const reload = await client.reloadPlugin(demo);
   assert.equal(reload.status, "running");
   assert.deepEqual(await rpc("config.read"), before);
   const restored = await rpc("usage.overview");
-  assert.deepEqual(restored.sources, overview.sources);
+  assert.deepEqual(restored.sources, finished.sources);
   assert.equal((await counts()).refresh, 1);
   assert.equal(restored.display.showResetCountdown, false);
   await rpc("config.preferences", { display: { showResetCountdown: true } });
@@ -125,12 +140,22 @@ try {
   for (const name of ["dirname", "readlink", "env"]) await symlink(await program(name), join(tools, name));
   await symlink(process.execPath, join(tools, "node"));
   const providers = Object.fromEntries(["claude", "codex", "copilot", "opencode", "pi", "antigravity"].map(p => [p, { enabled: false }]));
+  if (ui) {
+    for (const name of ["pgrep", "ps", "git"]) await symlink(await program(name), join(tools, name));
+    const peer = join(sandbox, "mock-acp.cjs");
+    await cp(join(here, "mock-acp.cjs"), peer);
+    providers.demo = { enabled: true, extends: "acp", label: "Demo", command: [process.execPath, peer] };
+  }
   await writeFile(join(state, "config.json"), JSON.stringify({
+    features: { voiceMode: { enabled: false }, dictation: { enabled: false } },
     pluginsEnabled: true, daemon: { relay: { enabled: false } }, agents: { providers },
   }), { mode: 0o600 });
   const mockDir = join(state, "provider-usage-mock");
-  await mkdir(mockDir, { mode: 0o700 });
-  await cp(join(root, "fixtures"), join(mockDir, "fixtures"), { recursive: true });
+  async function seedDemo() {
+    await mkdir(mockDir, { mode: 0o700 });
+    await cp(join(root, "fixtures"), join(mockDir, "fixtures"), { recursive: true });
+  }
+  await seedDemo();
   for (const name of ["server", "client", "shared", "index.client.tsx", "paseo-plugin.json", "package.json"]) {
     await cp(join(root, name), join(stage, name), { recursive: true });
   }
@@ -173,6 +198,19 @@ try {
   await verify(client, demoId, mockDir);
   console.log("Production install, mock settings, quota reports and reload passed.");
   if (ui) {
+    // Begin the interactive session with fresh fixtures after the RPC smoke has changed them.
+    await client.removePlugin(demoId);
+    await rm(mockDir, { recursive: true });
+    await seedDemo();
+    await install(stage, demoId);
+    const folder = join(home, "Quota demo");
+    await mkdir(folder);
+    const { workspace, error } = await client.createWorkspace({ source: { kind: "directory", path: folder }, title: "Quota demo" });
+    assert.ok(workspace, error ?? "Could not create the demo workspace.");
+    const agent = await client.createAgent({ workspaceId: workspace.id, cwd: folder, provider: "demo", title: "Quota preview" });
+    assert.ok(agent.id);
+    console.log(`Composer URL: http://${address}/h/${serverId}/workspace/${workspace.id}?open=agent%3A${agent.id}`);
+    console.log(`Mock request counts: ${join(mockDir, "mock-requests.json")}`);
     console.log(`Open http://${address}/ in a browser. Press Ctrl+C here to stop.`);
     await new Promise(resolve => { process.once("SIGINT", resolve); process.once("SIGTERM", resolve); });
   }

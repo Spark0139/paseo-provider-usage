@@ -19,6 +19,7 @@ test("native global discovery reuses sidebar data and rejects superseded account
   let reads = 0;
   const usage = new UsageService(store, () => ({
     test: () => assert.fail(),
+    taskStatus: () => assert.fail("Native operations must only read Keeper"),
     requestRefresh: () => assert.fail("Native operations must only read Keeper"),
     read: async () => {
       reads++;
