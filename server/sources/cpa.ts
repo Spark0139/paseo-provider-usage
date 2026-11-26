@@ -34,19 +34,22 @@ function createClient(instance: CpaInstance, key: string, options: Options) {
   const send = options.fetch ?? fetch;
   return async (path: "/credentials" | "/requests/api-call", body?: object): Promise<unknown> => {
     if (!key) throw new CpaError("CPA management key is missing.");
-    const signal = AbortSignal.timeout(10_000);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
       const response = await send(base + path, {
         method: body ? "POST" : "GET",
         headers: { Authorization: `Bearer ${key}`, ...(body && { "Content-Type": "application/json" }) },
         body: body ? JSON.stringify(body) : undefined,
-        redirect: "error", signal,
+        redirect: "error", signal: controller.signal,
       });
       if (!response.ok) throw new CpaError(`CPA management request failed (HTTP ${response.status}).`);
       return await response.json();
     } catch (error) {
       if (error instanceof CpaError) throw error;
-      throw new CpaError(signal.aborted ? "CPA request timed out." : "Could not read the CPA management response.");
+      throw new CpaError(controller.signal.aborted ? "CPA request timed out." : "Could not read the CPA management response.");
+    } finally {
+      clearTimeout(timeout);
     }
   };
 }
