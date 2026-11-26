@@ -16,14 +16,16 @@ export function Field({ label, value, onChange, theme, secret = false, disabled 
   </View>;
 }
 
-export function Button({ label, onPress, disabled = false, theme, danger = false }: {
+export function Button({ label, onPress, disabled = false, theme, danger = false, small = false }: {
   label: string; onPress: () => void; disabled?: boolean; theme: PluginTheme; danger?: boolean;
+  small?: boolean;
 }) {
   const c = theme.colors;
   return <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
-    onPress={onPress} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 6,
-      borderColor: c.border, borderWidth: 1, opacity: disabled ? 0.55 : 1 }}>
-    <Text style={{ color: danger ? c.statusDanger : c.foreground, fontWeight: "500" }}>{label}</Text>
+    onPress={onPress} style={({ pressed }) => ({ paddingVertical: small ? 5 : 8, paddingHorizontal: small ? 9 : 12,
+      borderRadius: 6, borderColor: c.border, borderWidth: 1, backgroundColor: pressed ? c.surface2 : c.surface0,
+      opacity: disabled ? 0.55 : 1 })}>
+    <Text style={{ color: danger ? c.statusDanger : c.foreground, fontSize: small ? 12 : 14, fontWeight: "500" }}>{label}</Text>
   </Pressable>;
 }
 

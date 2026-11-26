@@ -10,7 +10,7 @@ import {
 } from "../shared/contracts";
 import { Button, Field } from "./controls";
 import { overviewKey } from "./overview";
-import { localDate } from "./usage";
+import { Timestamp } from "./timestamp";
 
 type InstanceInfo = SettingsView["instances"][number];
 type Notice = { text: string; error?: boolean };
@@ -87,8 +87,10 @@ function ClaudeOptions({ settings, theme, busy, run, accept }: {
         {changed && <Button label="保存 Provider ID" theme={theme} disabled={busy || !valid}
           onPress={() => update(settings.claude.enabled)} />}
       </View>
-      <SettingsRow label="采集状态" hint={!settings.claude.enabled ? "已关闭" : settings.claudeObservedAt
-        ? `最近采集 ${localDate(settings.claudeObservedAt)}` : "等待首次额度事件"} />
+      <SettingsRow label="采集状态" hint={!settings.claude.enabled ? "已关闭" : settings.claudeObservedAt ? undefined : "等待首次额度事件"}>
+        {settings.claude.enabled && settings.claudeObservedAt &&
+          <Timestamp iso={settings.claudeObservedAt} now={Date.now()} label="最近采集" theme={theme} alignEnd />}
+      </SettingsRow>
     </SettingsCard>
   </SettingsSection>;
 }

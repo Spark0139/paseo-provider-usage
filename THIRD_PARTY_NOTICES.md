@@ -3,6 +3,7 @@
 | Project and revision | Original files | Adapted here |
 | --- | --- | --- |
 | [Paseo Usage Monitor](https://github.com/ABorakati/paseo-usage-monitor/tree/94da787423f941f9ea67dad684d3a5760011d801) | `client/meter.client.tsx`, `client/settings.client.tsx`, `index.client.tsx`, `server/config-store.server.ts` | Meter and form controls in `client/controls.tsx`, sidebar registration in `index.client.tsx`, owner-only atomic persistence in `server/storage/store.ts` |
+| [Paseo Usage Monitor](https://github.com/ABorakati/paseo-usage-monitor/blob/94da787423f941f9ea67dad684d3a5760011d801/client/tooltip.client.tsx) | `setTooltipTitle` in `client/tooltip.client.tsx` | Browser title binding in `client/timestamp.tsx` |
 
 Paseo Usage Monitor grants the following MIT license.
 
