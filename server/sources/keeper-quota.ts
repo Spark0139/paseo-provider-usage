@@ -5,6 +5,7 @@ import type { Account, QuotaWindow } from "../../shared/types";
 const plan = z.object({ provider: z.string(), plan: z.string() }).nullish();
 const identitySchema = z.object({
   id: z.string(), identity: z.string().trim(), name: z.string(), displayName: z.string(), type: z.string(),
+  alias: z.string().nullish(), note: z.string().nullish(),
   auth_type: z.number().int(), is_deleted: z.boolean(), disabled: z.boolean().nullish(), subscription: plan,
 });
 const identityList = z.object({ identities: z.array(identitySchema) });
@@ -59,13 +60,24 @@ function windowFor(row: Row, observedAt: string): QuotaWindow {
   };
 }
 
+function accountLabel(identity: Identity) {
+  const noteTitle = identity.note?.split(/[\r\n]+/).map(line => line.trim()).find(Boolean);
+  // Keeper can use the raw auth index as its displayName when metadata is missing.
+  const label = [identity.alias, noteTitle, identity.displayName, identity.name]
+    .map(value => value?.trim()).find(value => value && value !== identity.identity);
+  if (!label) return "Codex 账号";
+  // Apply Keeper's 50-code-point alias limit to longer titles derived from CPA notes.
+  const characters = Array.from(label);
+  return characters.length <= 50 ? label : characters.slice(0, 49).join("") + "…";
+}
+
 export function accountFromCache(identity: Identity, cache?: Cached): Account {
   // Both the Keeper row and the credential index precede any display-name or alias edits.
   const binding = JSON.stringify([identity.id, identity.identity]);
   const enabled = typeof identity.disabled === "boolean" ? !identity.disabled : null;
   const account: Account = {
     id: createHash("sha256").update(binding).digest("hex"),
-    label: identity.displayName || identity.name,
+    label: accountLabel(identity),
     planLabel: identity.subscription?.provider === "codex" ? identity.subscription.plan : undefined,
     enabled, state: enabled === false ? "disabled" : "unknown", windows: [], observedAt: null,
   };

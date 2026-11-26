@@ -4,11 +4,12 @@
     {
       "sourceId": "cpa-personal",
       "kind": "cpa",
-      "label": "Personal Keeper",
+      "label": "Codex",
+      "instanceLabel": "Personal Keeper",
       "accounts": [
         {
           "id": "mock-codex-01",
-          "label": "Pro account",
+          "label": "工作账号",
           "enabled": true,
           "state": "available",
           "windows": [
@@ -32,7 +33,7 @@
         },
         {
           "id": "mock-codex-02",
-          "label": "Plus account",
+          "label": "备用账号",
           "enabled": true,
           "state": "exhausted",
           "windows": [
@@ -56,7 +57,7 @@
         },
         {
           "id": "mock-codex-03",
-          "label": "Disabled account",
+          "label": "停用账号",
           "enabled": false,
           "state": "disabled",
           "windows": [],
@@ -69,7 +70,8 @@
     {
       "sourceId": "cpa-second",
       "kind": "cpa",
-      "label": "Second Keeper",
+      "label": "Codex",
+      "instanceLabel": "Second Keeper",
       "accounts": [
         {
           "id": "mock-codex-04",
@@ -87,11 +89,11 @@
     {
       "sourceId": "claude-reclaude",
       "kind": "claude",
-      "label": "ReClaude",
+      "label": "Claude",
       "accounts": [
         {
           "id": "claude-reclaude",
-          "label": "ReClaude / Claude Code",
+          "label": "Claude",
           "enabled": null,
           "state": "available",
           "windows": [

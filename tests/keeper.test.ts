@@ -36,6 +36,8 @@ test("read uses credential indexes and Keeper observation times, independently o
   const accounts = await client.read();
   assert.deepEqual(paths, [prefix + "/usage/identities", prefix + "/usage/identities", prefix + "/quota/cache"]);
   assert.deepEqual(accounts.map(x => [x.enabled, x.state]), [[true, "available"], [true, "exhausted"], [false, "disabled"]]);
+  assert.deepEqual(accounts.map(account => account.label), ["工作账号", "备用账号", "停用账号"]);
+  assert.ok(!JSON.stringify(accounts).includes("合成的补充说明"));
   assert.equal(accounts[0].observedAt, "2026-11-26T05:32:00.000Z");
   assert.equal(accounts[0].windows[0].resetAt, "2026-11-26T05:33:00.000Z");
   assert.equal(accounts[0].windows[0].usedPercent, first.usedPercent);
@@ -154,11 +156,23 @@ test("renaming a Keeper credential preserves its native report locator", async (
     url === prefix + "/usage/identities" ? { identities: [entry] } : cache,
   ) });
   const [before] = await client.read();
-  entry.name = "Updated credential name";
-  entry.displayName = "Updated alias";
+  entry.alias = " Updated alias ";
   const [after] = await client.read();
   assert.equal(after.label, "Updated alias");
   assert.equal(after.id, before.id);
+  entry.alias = null;
+  entry.displayName = entry.identity;
+  entry.note = "  \r\n Local note \r\n Do not display the rest";
+  assert.equal((await client.read())[0].label, "Local note");
+  entry.note = "🌕".repeat(51);
+  assert.equal((await client.read())[0].label, "🌕".repeat(49) + "…");
+  entry.note = "   ";
+  entry.name = "Readable name";
+  assert.equal((await client.read())[0].label, "Readable name");
+  entry.name = entry.identity;
+  const [anonymous] = await client.read();
+  assert.equal(anonymous.label, "Codex 账号");
+  assert.ok(!JSON.stringify(anonymous).includes(entry.identity));
   entry.id = "999";
   assert.notEqual((await client.read())[0].id, before.id);
 });

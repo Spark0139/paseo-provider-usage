@@ -16,7 +16,6 @@ export type InstanceDraft = Omit<KeeperInstance, "id"> & { id?: string; password
 
 const configFile = "config-v2.json";
 const passwordFile = "keeper-passwords.json";
-const legacyPreferences = configSchema.pick({ claude: true, display: true });
 
 function defaults(): Config {
   return {
@@ -62,15 +61,7 @@ export class SettingsStore {
   constructor(readonly directory: string) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     chmodSync(directory, 0o700);
-    const current = readDocument(join(directory, configFile), configSchema);
-    if (current) {
-      this.config = current;
-    } else {
-      const legacy = readDocument(join(directory, "config.json"), legacyPreferences);
-      this.config = { ...defaults(), ...legacy };
-      if (legacy) writeDocument(directory, configFile, this.config);
-    }
-    // The older release used secrets.json for CPA management keys.
+    this.config = readDocument(join(directory, configFile), configSchema) ?? defaults();
     this.passwords = readDocument(join(directory, passwordFile), z.record(z.string(), z.string())) ?? {};
     this.prunePasswords();
   }
