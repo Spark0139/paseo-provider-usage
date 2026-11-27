@@ -20,7 +20,7 @@ paseo plugin install github:Spark0139/paseo-provider-usage
 - **常用 Codex 账号**。在 **设置 → Codex → 常用账号** 选中 Keeper 里的账号备注，聊天入口就会固定显示这个账号的剩余额度。例如 `Codex 82%` 表示五小时剩余 82%，只有周额度时会写成 `7天 20%`。保留「自动」会优先显示有读数的可用账号。点开浮卡可查看所有账号和窗口。
 - **更新 Codex 额度**。活跃账号的普通请求带回额度时，Keeper 会更新缓存。聊天里的 Codex 入口、浮卡和额度总览在前台显示时，每分钟同步已有读数。要立即查询，点击该实例的 **更新额度** 一次，完成后会自动显示结果。需要定期主动查询时，可在 Keeper 的 **巡检 → 齿轮 → 定时刷新** 设置周期。
 - **Claude**。在 **设置 → Claude** 选择平时用于聊天的 Claude 启动配置，打开 **采集额度**。等当前回合结束，在原 Chat 的标签页菜单选择 **重新加载 Agent** 一次，或用此配置新建 Chat。正常发消息后，在 **检查接入** 查看采集状态。曾手动添加旧采集前缀的用户，先把启动命令还原一次。[Claude 采集与迁移](docs/claude-collection.md)
-- **Antigravity**。先在 Paseo 中配置 Antigravity Provider，再在插件设置中打开 **显示额度**。使用代理时，沿用现有包装命令和环境，保留 `acp` 与 `--disable-telemetry` 参数。卡片按 Paseo 返回的额度组显示各自的剩余比例与重置时间，例如 Gemini 的五小时和每周窗口。[Paseo Antigravity 配置](https://paseo.sh/docs/supported-providers/antigravity)
+- **Antigravity**。额度取自当前 daemon 的 **Paseo Usage**。Paseo 0.17.5 仍提供内置额度来源，0.17.6 已移除该来源，继续提供 Antigravity 会话。主机返回额度报告时，卡片按额度组显示剩余比例与重置时间。主机没有额度报告时，可在 Google 官方 Antigravity CLI 的交互界面输入 `/usage` 查看各额度组。可在 **设置 → Antigravity** 关闭 **显示额度**。[Paseo 0.17.6 更新日志](https://paseo.sh/changelog) · [Antigravity `/usage` 文档](https://antigravity.google/docs/cli/commands/usage)
 
 ## 卸载
 

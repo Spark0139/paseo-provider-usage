@@ -236,7 +236,8 @@ function HostSettings({ theme, host, onSaved }: SettingsProps) {
     <ClaudeOptions key={settings.claude.providerId} hostId={host.id} settings={settings} theme={theme} busy={busy} run={run} accept={accept} />
     <SettingsSection title={providers.native.label}>
       <SettingsCard>
-        <SettingsSwitch label="显示额度" value={settings.display.showNativeProviders} disabled={busy}
+        <SettingsSwitch label="显示额度" hint="读取当前主机的 Paseo Usage 报告。Paseo 0.17.6 已移除内置额度来源。"
+          value={settings.display.showNativeProviders} disabled={busy}
           onValueChange={value => changeDisplay("showNativeProviders", value)} />
       </SettingsCard>
     </SettingsSection>
