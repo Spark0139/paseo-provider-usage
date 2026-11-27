@@ -5,6 +5,7 @@
 - Claude quota collection now attaches automatically when the selected Claude Code or ReClaude provider starts a Chat on Paseo 0.17.5 or later. Upgrading from manual launcher setup requires restoring the original provider command once.
 - Claude capture diagnostics report launch wrapper conflicts and collector startup failures.
 - The visible Claude composer pill and popover update from the daemon's last captured reading.
+- Clarified that Antigravity quota cards depend on the connected daemon's Usage reports. Paseo 0.17.6 removed its bundled Antigravity quota source.
 
 ## 0.1.0
 
